@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星榆中学 2008 · 地下长廊（追击）</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;margin:0 auto;background:#060606}
+</style>
+</head>
+<body>
+<audio id="map8-bgm" src="map8.mp3" autoplay loop preload="auto" style="display:none"></audio>
+<script>
+// 在游戏脚本前立即启动 BGM，避免被后续脚本干扰
+(function(){
+  var bgm = document.getElementById('map8-bgm');
+  if(!bgm) return;
+  bgm.volume = 0.6;
+  var retry = function(){
+    bgm.play().catch(function(e){
+      console.warn('map8 bgm blocked, waiting for interaction');
+    });
+  };
+  retry();
+  document.addEventListener('keydown', function once(){
+    retry();
+    document.removeEventListener('keydown', once);
+  });
+  document.addEventListener('click', function once(){
+    retry();
+    document.removeEventListener('click', once);
+  });
+})();
+</script>
+<script>
+// go() 跳转函数 fallback（bgm.js 未加载时兜底）
+window.go = window.go || function(u){ location.href = u; };
+</script>
+<canvas id="c"></canvas>
+<script>
+(function(){
+var C=document.getElementById('c');
+var ctx=C.getContext('2d');
+
+// 标记「进入过 map8」，用于回 map1 后大门走彩蛋结局
+try{ sessionStorage.setItem('visitedMap8','1'); }catch(e){}
+
+var W=960,H=540;
+C.width=W;C.height=H;
+
+function resize(){
+  var s=Math.min(window.innerWidth/W,window.innerHeight/H);
+  C.style.width=(W*s)+'px';
+  C.style.height=(H*s)+'px';
+}
+resize();window.addEventListener('resize',resize);
+
+// ── Palette ──
+var P={
+  BG:'#050505',
+  WALL:'#1c1c1c', WALL2:'#262626', WALL3:'#333',
+  FLOOR:'#101010', FLOOR2:'#0c0c0c',
+  HALL:'#0e0e0e', CORR:'#111',
+  TEXT:'#7a7a7a', HINT:'#8a7a5a',
+  RED:'#883333', GREEN:'#3a5a3a', BLUE:'#3a4a6a', YELLOW:'#6a5a30',
+  PLAYER:'#8a8a8a', PLAYER2:'#bbb',
+  DARK:'#080808', CHASER:'#000', CHASER_GLOW:'rgba(80,0,0,0.5)',
+  DOOR:'#1a1a15', INTERACT:'#888',
+  CRATE:'#4a3a20', CRATE2:'#3a2a18',
+  CABINET:'#3a3a3a', CABINET2:'#2a2a2a',
+  BENCH:'#2a2a1c', BENCH2:'#1a1a10',
+  BARREL:'#4a2a1a', BARREL2:'#3a1a0a',
+  BROKEN_LIGHT:'#5a4a2a',
+  DEADEND:'#0a0a0a',
+  HUD:'#5a5a5a',
+  FOOTPRINT:'#3a3a3a',
+  ARROW:'#8a6a3a',
+  EXIT_GLOW:'rgba(80,200,80,0.3)',
+  BLOOD:'#3a1010'
+};
+
+// ── 地图边界 ──
+// 长走廊：横向很宽，纵向很窄
+// 玩家在 ~2000x300 的世界里探索
+var B={L:0, T:0, R:2400, B:300};
+var CW=B.R-B.L, CH=B.B-B.T;
+
+var keys={};
+var dialog=null;
+var interactionHint=null;
+var tipText='';
+var tipTimer=0;
+var screenShake=0;
+var redFlashOn=false;
+var redFlashTimer=0;
+var gameTime=0;        // 总帧数
+var playerDead=false;
+var caughtDeath=false;
+var caughtDeathStart=0;
+var tipShake=0;
+
+// ── 玩家 ──
+var player={
+  x:B.L+30, y:B.T+140, w:12, h:18, vx:0, vy:0,
+  speed:2.0,           // 追击地图玩家稍快
+  facing:3, frame:0, walkTimer:0,
+  invuln:0             // 无敌帧（刚进入时短暂保护）
+};
+window.__xyzh_player=player;
+(function(){
+  try{
+    var r=JSON.parse(sessionStorage.getItem('xyzh_resume')||'null');
+    if(r && r.map==='map8.html'){ player.x=r.x; player.y=r.y; sessionStorage.removeItem('xyzh_resume'); }
+  }catch(e){}
+})();
+
+// ── 相机跟随系统（与 mp5 一致）──
+var CAM_ZOOM=2.2;
+var camera=null;
+function updateCamera(){
+  if(!camera){ camera={x:player.x+player.w/2, y:player.y+player.h/2}; return; }
+  var tx=player.x+player.w/2;
+  var ty=player.y+player.h/2;
+  var vw=B.R-B.L, vh=B.B-B.T;
+  var cvw=W/CAM_ZOOM, cvh=H/CAM_ZOOM;
+  if(cvw<vw){ tx=Math.max(B.L+cvw/2, Math.min(B.R-cvw/2, tx)); }
+  if(cvh<vh){ ty=Math.max(B.T+cvh/2, Math.min(B.B-cvh/2, ty)); }
+  camera.x=tx; camera.y=ty;
+}
+
+// ── 墙体设计 ──
+// 思路：水平长走廊（高 80），上下各一条辅走廊（高 30），中间用多道断墙隔出
+// 主走廊（中央高 80，y=110..190）贯穿整张图
+// 上下辅走廊（高 30，y=20..50 / y=250..280）有岔路口连通
+// 多处死路 + T 字路口 + 拐角
+var walls=[];
+
+// 上下主墙（沿 B 边界）
+walls.push({x:B.L,   y:B.T,    w:CW, h:4});
+walls.push({x:B.L,   y:B.B-4,  w:CW, h:4});
+walls.push({x:B.L,   y:B.T,    w:4,   h:CH});
+walls.push({x:B.R-4, y:B.T,    w:4,   h:CH});
+
+// 主走廊（中央 80 高）上下边界（拆成多段，每段对应一个通道入口）
+// 主走廊 y=110..190
+// 缺口 x 列表（每个缺口宽 18px，玩家可穿过）
+var upperGaps=[280,300,440,610,640,760,830,1240,1260,1450,1500,1950,1980,2050,2080,2180,2200,2270];
+var lowerGaps=[300,320,740,800,820,865,900,920,1060,1080,1140,1560,1580,1650,1660,1730,1750,1830,1850,1920];
+
+// 上界（y=108, h=2）：在 x=0..2400 中按 upperGaps 留缺口
+(function(){
+  var last=0;
+  upperGaps.sort(function(a,b){return a-b;});
+  for(var i=0;i<upperGaps.length;i++){
+    var gx=upperGaps[i]-9;
+    if(gx>last){
+      walls.push({x:last, y:108, w:gx-last, h:2});
+    }
+    last=upperGaps[i]+9;
+  }
+  if(last<2400){
+    walls.push({x:last, y:108, w:2400-last, h:2});
+  }
+})();
+// 下界（y=190, h=2）
+(function(){
+  var last=0;
+  lowerGaps.sort(function(a,b){return a-b;});
+  for(var i=0;i<lowerGaps.length;i++){
+    var gx=lowerGaps[i]-9;
+    if(gx>last){
+      walls.push({x:last, y:190, w:gx-last, h:2});
+    }
+    last=lowerGaps[i]+9;
+  }
+  if(last<2400){
+    walls.push({x:last, y:190, w:2400-last, h:2});
+  }
+})();
+
+// 上辅走廊（y=18..48）下边界：在每个死路/岔路顶墙对应 x 位置留 18px 缺口
+// 死路/岔路顶墙的 x 中心
+var upperDeadendCenters=[450,820,1260,1660,2040, 300,680,1080,1470,1850,2180];
+// 为每个顶墙中心 ±9 留缺口，并合并到 upperGaps
+var allUpperGaps=upperGaps.concat(upperDeadendCenters);
+(function(){
+  var last=0;
+  allUpperGaps.sort(function(a,b){return a-b;});
+  for(var i=0;i<allUpperGaps.length;i++){
+    var gx=allUpperGaps[i]-9;
+    if(gx>last){
+      walls.push({x:last, y:48, w:gx-last, h:2});
+    }
+    last=allUpperGaps[i]+9;
+  }
+  if(last<2400){
+    walls.push({x:last, y:48, w:2400-last, h:2});
+  }
+})();
+
+// 下辅走廊（y=252..282）上边界：同样在死路/岔路对应 x 留缺口
+var lowerDeadendCenters=[450,820,1260,1660,2040, 300,680,1080,1470,1850,2180];
+var allLowerGaps=lowerGaps.concat(lowerDeadendCenters);
+(function(){
+  var last=0;
+  allLowerGaps.sort(function(a,b){return a-b;});
+  for(var i=0;i<allLowerGaps.length;i++){
+    var gx=allLowerGaps[i]-9;
+    if(gx>last){
+      walls.push({x:last, y:252, w:gx-last, h:2});
+    }
+    last=allLowerGaps[i]+9;
+  }
+  if(last<2400){
+    walls.push({x:last, y:252, w:2400-last, h:2});
+  }
+})();
+
+// === 主走廊内的隔墙（让长走廊有节奏感） ===
+// 隔墙 A：x=320, 主走廊中段（留一个 30px 缺口 y=140-170 让玩家绕）
+walls.push({x:320, y:108, w:4, h:32});
+walls.push({x:320, y:170, w:4, h:20});
+// 隔墙 B：x=520
+walls.push({x:520, y:108, w:4, h:24});
+walls.push({x:520, y:164, w:4, h:26});
+// 隔墙 C：x=700（动态坍塌墙：原本上段 18px，玩家靠近后从 18px 延伸为完整 82px 隔墙）
+var wall700Top={x:700, y:108, w:4, h:18};   // 上段（18px 短墙，玩家可从下方绕过）
+walls.push(wall700Top);
+// 坍塌填充段（坍塌前不存在，坍塌后插入：填充 y=126..190 共 64px）
+var wall700Fill=null;
+// 坍塌状态
+var wall700Collapsed=false;  // 是否已坍塌
+var wall700CollapseFrame=0;  // 坍塌发生帧（用于灰尘动画）
+
+// === 隔墙 F：x=830（玩家靠近时坍塌，初始不存在，坍塌后插入 4×80 完整隔墙） ===
+// 设计：玩家必须在坍塌前从 x=830 缺口（upperGaps 已加 830）向上逃入辅走廊
+var wall830Collapsed=false;
+var wall830CollapseFrame=0;
+var wall830Fill=null;  // 坍塌后插入的墙体对象
+// 隔墙 D：x=920
+walls.push({x:920, y:108, w:4, h:30});
+walls.push({x:920, y:170, w:4, h:20});
+// 隔墙 E：x=1140
+walls.push({x:1140, y:108, w:4, h:40});
+walls.push({x:1140, y:170, w:4, h:20});
+// 隔墙 F：x=1360
+walls.push({x:1360, y:108, w:4, h:22});
+walls.push({x:1360, y:152, w:4, h:38});
+// 隔墙 G：x=1560
+walls.push({x:1560, y:108, w:4, h:30});
+walls.push({x:1560, y:170, w:4, h:20});
+// 隔墙 H：x=1800
+walls.push({x:1800, y:108, w:4, h:38});
+walls.push({x:1800, y:170, w:4, h:20});
+// 隔墙 I：x=2040
+walls.push({x:2040, y:108, w:4, h:20});
+walls.push({x:2040, y:158, w:4, h:32});
+
+// === 上下辅走廊的断墙 ===
+// 上辅走廊 y=18..48 隔墙
+walls.push({x:200,  y:48, w:4, h:30});
+walls.push({x:200,  y:78, w:4, h:30});
+walls.push({x:400,  y:48, w:4, h:38});
+walls.push({x:400,  y:86, w:4, h:22});
+walls.push({x:600,  y:48, w:4, h:24});
+walls.push({x:600,  y:72, w:4, h:36});
+walls.push({x:820,  y:48, w:4, h:32});
+walls.push({x:820,  y:80, w:4, h:28});
+walls.push({x:1020, y:48, w:4, h:26});
+walls.push({x:1020, y:74, w:4, h:34});
+walls.push({x:1240, y:48, w:4, h:34});
+walls.push({x:1240, y:82, w:4, h:26});
+walls.push({x:1440, y:48, w:4, h:22});
+walls.push({x:1440, y:70, w:4, h:38});
+walls.push({x:1680, y:48, w:4, h:30});
+walls.push({x:1680, y:78, w:4, h:30});
+walls.push({x:1900, y:48, w:4, h:36});
+walls.push({x:1900, y:84, w:4, h:24});
+walls.push({x:2100, y:48, w:4, h:22});
+walls.push({x:2100, y:70, w:4, h:38});
+
+// 下辅走廊 y=252..282 隔墙
+walls.push({x:240,  y:222, w:4, h:30});
+walls.push({x:240,  y:252, w:4, h:30});
+walls.push({x:460,  y:214, w:4, h:38});
+walls.push({x:460,  y:252, w:4, h:30});
+walls.push({x:680,  y:222, w:4, h:30});
+walls.push({x:680,  y:252, w:4, h:30});
+walls.push({x:880,  y:210, w:4, h:42});
+walls.push({x:880,  y:252, w:4, h:30});
+walls.push({x:1100, y:220, w:4, h:32});
+walls.push({x:1100, y:252, w:4, h:30});
+walls.push({x:1320, y:214, w:4, h:38});
+walls.push({x:1320, y:252, w:4, h:30});
+walls.push({x:1520, y:222, w:4, h:30});
+walls.push({x:1520, y:252, w:4, h:30});
+walls.push({x:1740, y:208, w:4, h:44});
+walls.push({x:1740, y:252, w:4, h:30});
+walls.push({x:1960, y:222, w:4, h:30});
+walls.push({x:1960, y:252, w:4, h:30});
+walls.push({x:2160, y:214, w:4, h:38});
+walls.push({x:2160, y:252, w:4, h:30});
+
+// === 死路：主走廊中部向上/向下分叉，到尽头再回来 ===
+// 死路 1：x=380..520, y=48..108 的上侧死路（入口在 x=450 处 y=108）
+walls.push({x:380, y:48,  w:4,   h:60});  // 左
+walls.push({x:516, y:48,  w:4,   h:60});  // 右
+walls.push({x:380, y:48,  w:140, h:4});   // 顶
+// D2 死路 + B3 短旁通 中间隔板已打通（删除 D2 右墙 + B3 左墙）
+// 原 D2 区域：x=740..900, y=190..252
+walls.push({x:740, y:190, w:4,  h:62});   // D2 左墙保留
+walls.push({x:740, y:248, w:160, h:4});   // D2 底墙保留
+// B3 左墙已删除（原 x=880, y=190, w=4, h=62）
+// 死路 3：x=1180..1340, y=48..108
+walls.push({x:1180, y:48, w:4,  h:60});
+walls.push({x:1336, y:48, w:4,  h:60});
+walls.push({x:1180, y:48, w:160, h:4});
+// 原死路 4（D4）已删除，与 B6 Z 回路合并 → 现标记为 B6
+// B6 区域底墙（D4 旧址底墙）
+walls.push({x:1580, y:190, w:4,  h:62});  // 左墙
+walls.push({x:1580, y:248, w:160, h:4});  // D4 旧址底墙
+// 死路 5（D4）：x=1960..2120, y=48..108
+walls.push({x:1960, y:48, w:4,  h:60});
+walls.push({x:2116, y:48, w:4,  h:60});
+walls.push({x:1960, y:48, w:160, h:4});
+// 内部中央纵墙（短）— 留大段顶部/底部缺口让玩家跨越
+walls.push({x:2040, y:84,  w:4,  h:14});  // 中央纵墙 y=84..98
+
+// === D4 走廊隔断墙：x=2040 中间位置 4×80 ===
+// 迫使玩家从 D4 死路内部走
+walls.push({x:2040, y:110, w:4, h:80});  // D4 中央正下方主走廊隔断
+
+// === 岔路 1：上侧 L 型回路（x=600..760） ===
+// 玩家从主走廊 x=620 进入（沿 y=108 缺口）→ 沿顶部走 → 拐右下 → 从 x=720 走出
+// 外框 = 矩形；内部只用一段斜向小墙挡住直路
+walls.push({x:600, y:48,  w:4,  h:60});   // 左墙（y=48..108）
+walls.push({x:760, y:48,  w:4,  h:36});   // 右墙上半段（y=48..84）
+walls.push({x:600, y:48,  w:164, h:4});   // 顶墙
+// L 内部隔墙：靠左下，让玩家从右下进入、沿底部走、再从左上出
+walls.push({x:680, y:84,  w:4,  h:24});   // 内部小墙（y=84..108）
+// 右墙下半段（y=84..108）已删除，玩家可从右下角直接穿入 L 回路
+// 路径：x=620 进入 → 沿顶部走到 x=720 → 直接掉到下方主走廊（无阻碍）
+
+// === 岔路 2：下侧 L 型回路（x=1000..1160） ===
+walls.push({x:1000, y:190, w:4,  h:62});
+walls.push({x:1160, y:190, w:4,  h:62});
+walls.push({x:1000, y:248, w:164, h:4});
+walls.push({x:1080, y:190, w:4,  h:30});  // 内部小墙（y=190..220）
+
+// === 岔路 3：上侧 T 字路口（x=1380..1560） ===
+// 玩家从主走廊可选：直走 / 左拐死路 / 右拐死路
+walls.push({x:1380, y:48,  w:4,  h:60});
+walls.push({x:1560, y:48,  w:4,  h:60});
+walls.push({x:1380, y:48,  w:184, h:4});
+// 内部中央纵墙（短）— 留大段顶部/底部缺口让玩家跨越
+walls.push({x:1470, y:84,  w:4,  h:14});  // 中央纵墙 y=84..98（顶部 36px + 底部 10px 缺口）
+
+// === B5 走廊隔断墙：x=1470 中间位置 4×80 ===
+// 迫使玩家从 B5 T 字内部走
+walls.push({x:1470, y:110, w:4,  h:80});  // B5 中央正下方主走廊隔断
+
+// === 岔路 4：下侧十字路口（x=1760..1940，左墙已删除与死路 4 合并） ===
+walls.push({x:1940, y:190, w:4,  h:62});
+walls.push({x:1760, y:248, w:184, h:4});
+// 内部断墙形成 Z 形（让玩家在里面绕一下）
+walls.push({x:1800, y:222, w:4,  h:30});
+walls.push({x:1900, y:190, w:4,  h:28});
+
+// === 岔路 5：上侧双 L 回路（x=2080..2280） ===
+walls.push({x:2080, y:48,  w:4,  h:60});
+walls.push({x:2280, y:48,  w:4,  h:60});
+walls.push({x:2080, y:48,  w:204, h:4});
+// 中间分隔 + 两个小 L
+walls.push({x:2180, y:48,  w:4,  h:30});  // 中间上墙
+walls.push({x:2180, y:96,  w:4,  h:12});  // 中间下墙（留 18px 缝隙）
+// 玩家可走左上 L 或右上 L
+walls.push({x:2120, y:84,  w:4,  h:24});  // 左下小墙
+walls.push({x:2240, y:84,  w:4,  h:24});  // 右下小墙
+
+// === 岔路 6：主走廊中部垂直旁通（x=260..320 上方 & x=880..940 下方） ===
+// 玩家在主走廊遇到掉落的柜子时，可绕进这些短旁通
+// 6a 上侧短旁通（绕过 x=320 隔墙）
+walls.push({x:260, y:48,  w:4,  h:60});
+walls.push({x:340, y:48,  w:4,  h:60});
+walls.push({x:260, y:48,  w:84, h:4});
+walls.push({x:300, y:84,  w:4,  h:24});
+// B3 短旁通：与 D2 打通后，左墙已删除
+walls.push({x:960, y:190, w:4,  h:62});   // B3 右墙
+walls.push({x:880, y:248, w:84, h:4});    // B3 底墙
+
+// === 岔路 7：下侧三岔口（x=2240..2360, 出口前最后选择） ===
+// 玩家接近出口时，可选择：直接冲刺 / 拐入短支路
+walls.push({x:2240, y:190, w:4,  h:62});
+walls.push({x:2340, y:190, w:4,  h:62});
+walls.push({x:2240, y:248, w:104, h:4});
+// 内部加个小隔断
+walls.push({x:2290, y:222, w:4,  h:30});
+
+// ── 装饰：岔路口指示（已删除，地图上不要字）──
+
+// ── 静态障碍物（开始就在的家具）──
+var obstacles=[];
+function addCrate(x,y,w,h){ obstacles.push({kind:'crate',x:x,y:y,w:w||18,h:h||18,fallT:-1,fallY:0,targetY:y,fallVy:0,fell:false}); }
+function addCabinet(x,y,w,h){ obstacles.push({kind:'cabinet',x:x,y:y,w:w||16,h:h||32,fallT:-1,fallY:0,targetY:y,fallVy:0,fell:false}); }
+function addBench(x,y,w,h){ obstacles.push({kind:'bench',x:x,y:y,w:w||32,h:h||10,fallT:-1,fallY:0,targetY:y,fallVy:0,fell:false}); }
+function addBarrel(x,y,w,h){ obstacles.push({kind:'barrel',x:x,y:y,w:w||14,h:h||14,fallT:-1,fallY:0,targetY:y,fallVy:0,fell:false}); }
+
+// 主走廊静态障碍（少量，节奏感）
+addCrate(150, 130, 18, 18);
+addCrate(160, 160, 16, 16);
+addBarrel(280, 145, 14, 14);
+addBench(450, 168, 30, 10);
+addCrate(620, 132, 18, 18);
+addCabinet(820, 140, 16, 32);
+addCrate(840, 175, 16, 16);
+addBarrel(1050, 130, 14, 14);
+addBench(1080, 170, 32, 10);
+addCrate(1280, 140, 18, 18);
+addBarrel(1500, 130, 14, 14);
+addCrate(1520, 168, 16, 16);
+addBench(1740, 140, 30, 10);
+addCrate(1900, 132, 18, 18);
+addBarrel(2080, 145, 14, 14);
+addCabinet(2230, 140, 16, 32);
+
+// ── 动态掉落的柜子（玩家经过旁边时掉下来堵路）──
+// 触发条件：玩家 x 进入 [t.x-12, t.x+t.w+12] 范围，且 y 在垂直 30 像素内
+// 触发后柜子从上方（y=t.y-t.fallH）自由落体到 t.y
+var fallingCabinets=[];
+function addFallingCabinet(x,y,w,h){
+  fallingCabinets.push({x:x, y:y, w:w, h:h, triggered:false, fallVy:0, fallY:y-200, targetY:y});
+}
+addFallingCabinet(360, 108, 16, 32);
+addFallingCabinet(700, 190, 16, 32);
+addFallingCabinet(1100, 108, 16, 32);
+addFallingCabinet(1500, 190, 16, 32);
+addFallingCabinet(1900, 108, 16, 32);
+addFallingCabinet(2200, 190, 16, 32);
+
+// ── 追逐黑影（进入地图 0.5 秒后开始追杀）──
+var DEV_NO_CHASER = false;  // ★ 开发者模式：true=禁用黑影，上线前改回 false
+var chaser=null;
+var CHASE_SPEED_MUL=1.55;  // 玩家已经提速，黑影更快
+var CHASE_CHASER_RATIO=0.85;
+var chaseStarted=true;     // 进入地图即开始追逐
+var chaseStartFrame=30;    // 0.5 秒延迟后开始追
+var CHASE_DELAY_FRAMES=30; // 0.5 秒延迟
+if(!DEV_NO_CHASER){
+  // 立即在地图最左端生成黑影
+  chaser={x:B.L+10, y:B.T+CH/2, w:18, h:24, vx:0, vy:0, path:null, pathIdx:0, pathTimer:0};
+  redFlashOn=true;
+  tipText='它……在追你！快跑！';
+}
+tipTimer=120;
+
+// ── 出口（地图最右侧）──
+var exitZone={x:2350, y:130, w:30, h:60, kind:'exit'};
+var reachedExit=false;
+
+// ── 走廊警报灯（沿主走廊顶部，每隔 60px 一盏，流水闪烁）──
+var alarmLights=[];
+for(var ax=20; ax<B.R; ax+=60){
+  alarmLights.push({x:ax, y:54, phase:ax*0.04});
+}
+
+// ── 房间标识（已删除，地图上不要字）──
+
+// ── 脚印痕迹（追逐中留下）──
+var footprints=[];
+
+// ── 输入 ──
+window.addEventListener('keydown',function(e){
+  var k=e.key.toLowerCase();
+  keys[k]=true;
+  if(k==='f' && !dialog && !playerDead){
+    if(interactionHint && interactionHint.kind==='exit'){
+      tryReachedExit();
+    }
+  }
+  if(k==='escape' || k==='f' || k===' '){
+    if(dialog){ e.preventDefault(); advanceDialog(); }
+  }
+});
+window.addEventListener('keyup',function(e){
+  keys[e.key.toLowerCase()]=false;
+});
+
+function tryReachedExit(){
+  if(player.x+player.w/2>exitZone.x && player.y>exitZone.y-10 && player.y<exitZone.y+exitZone.h+10){
+    // 冲出地下长廊 → 等同于 mp5 拉完4闸触发核心后返回 map1
+    // 设置三把钥匙：追逐继续 + 传送到侧门通道 + 大门密码失效
+    try{ sessionStorage.setItem('chaseOn','1'); }catch(e){}
+    try{ sessionStorage.setItem('map1_tp_tr','1'); }catch(e){}
+    try{ sessionStorage.setItem('xyzh_chase_solved','1'); }catch(e){}
+    tipText='你冲出了地下长廊……';
+    tipTimer=120;
+    setTimeout(function(){ window.location.href='map.html'; }, 800);
+  } else {
+    tipText='还没到出口……';
+    tipTimer=60;
+  }
+}
+
+function advanceDialog(){
+  if(!dialog) return;
+  dialog.step++;
+  if(dialog.step>=dialog.texts.length){
+    dialog=null;
+  }
+}
+
+// ── 碰撞 ──
+function collides(x,y,w,h){
+  for(var i=0;i<walls.length;i++){
+    var ww=walls[i];
+    if(x<ww.x+ww.w && x+w>ww.x && y<ww.y+ww.h && y+h>ww.y) return true;
+  }
+  for(var i=0;i<obstacles.length;i++){
+    var o=obstacles[i];
+    if(x<o.x+o.w && x+w>o.x && y<o.y+o.h && y+h>o.y) return true;
+  }
+  for(var i=0;i<fallingCabinets.length;i++){
+    var f=fallingCabinets[i];
+    if(!f.triggered) continue;
+    if(x<f.x+f.w && x+w>f.x && y<f.y+f.h && y+h>f.y) return true;
+  }
+  return false;
+}
+
+// ── A* 寻路（4 方向，绕过墙体）──
+// 工具：把 (px,py) 吸附到最近的可走格，避免目标点/起点刚好落在墙里导致 A* 失败
+function snapToWalkable(px,py,boxW,boxH){
+  var step=10;
+  // 在 ±2 步范围内搜索最近的可走格
+  var best=null, bestD=Infinity;
+  for(var dx=-2;dx<=2;dx++){
+    for(var dy=-2;dy<=2;dy++){
+      var cx=Math.floor((px+dx*step-B.L)/step);
+      var cy=Math.floor((py+dy*step-B.T)/step);
+      if(cx<0||cy<0) continue;
+      var rx=B.L+cx*step, ry=B.T+cy*step;
+      if(!collides(rx,ry,boxW,boxH)) continue;
+      var dd=Math.abs(rx-px)+Math.abs(ry-py);
+      if(dd<bestD){ bestD=dd; best={x:rx+9,y:ry+12}; }
+    }
+  }
+  return best;
+}
+
+function aStar(sx,sy,ex,ey){
+  // 把世界离散到 10 像素网格
+  var step=10;
+  var gw=Math.floor(CW/step)+2;
+  var gh=Math.floor(CH/step)+2;
+  // 起终点若落在墙里，先吸附到最近的可走格
+  if(collides(sx-9,sy-12,18,24)){
+    var sp=snapToWalkable(sx,sy,18,24);
+    if(sp){ sx=sp.x; sy=sp.y; } else return null;
+  }
+  if(collides(ex-9,ey-12,18,24)){
+    var ep=snapToWalkable(ex,ey,18,24);
+    if(ep){ ex=ep.x; ey=ep.y; } else return null;
+  }
+  var ox=Math.floor((sx-B.L)/step);
+  var oy=Math.floor((sy-B.T)/step);
+  var tx=Math.floor((ex-B.L)/step);
+  var ty=Math.floor((ey-B.T)/step);
+  function ok(px,py){
+    if(px<0||py<0||px>=gw||py>=gh) return false;
+    // 像素坐标（chaser 不撞墙，沿用真实实体大小）
+    var rx=B.L+px*step, ry=B.T+py*step;
+    return !collides(rx,ry,18,24);
+  }
+  if(!ok(ox,oy)||!ok(tx,ty)) return null;
+  var open=[{x:ox,y:oy,g:0,h:Math.abs(tx-ox)+Math.abs(ty-oy),p:null}];
+  var closed={};
+  function key(x,y){return x+','+y;}
+  var maxIter=4000;  // 防止极端情况下卡死
+  while(open.length>0 && maxIter-->0){
+    // 找最小 f
+    var bi=0;
+    for(var i=1;i<open.length;i++) if((open[i].g+open[i].h)<(open[bi].g+open[bi].h)) bi=i;
+    var cur=open[bi];
+    if(cur.x===tx && cur.y===ty){
+      var path=[];
+      while(cur){ path.push({x:B.L+cur.x*step+9, y:B.T+cur.y*step+12}); cur=cur.p; }
+      path.reverse();
+      return path;
+    }
+    open.splice(bi,1);
+    closed[key(cur.x,cur.y)]=1;
+    var dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(var d=0;d<4;d++){
+      var nx=cur.x+dirs[d][0], ny=cur.y+dirs[d][1];
+      var k=key(nx,ny);
+      if(closed[k]) continue;
+      if(!ok(nx,ny)) continue;
+      var ng=cur.g+1;
+      var found=false;
+      for(var i=0;i<open.length;i++){
+        if(open[i].x===nx && open[i].y===ny){
+          found=true;
+          if(ng<open[i].g){
+            open[i].g=ng; open[i].p=cur;
+          }
+          break;
+        }
+      }
+      if(!found){
+        open.push({x:nx,y:ny,g:ng,h:Math.abs(tx-nx)+Math.abs(ty-ny),p:cur});
+      }
+    }
+  }
+  return null;
+}
+
+// ── 移动玩家 ──
+function updatePlayer(){
+  var mx=0,my=0;
+  if(keys['w']||keys['arrowup']) my=-1;
+  if(keys['s']||keys['arrowdown']) my=1;
+  if(keys['a']||keys['arrowleft']) mx=-1;
+  if(keys['d']||keys['arrowright']) mx=1;
+  if(mx!==0 && my!==0){ mx*=0.707; my*=0.707; }
+  if(mx!==0||my!==0){
+    var nx=player.x+mx*player.speed;
+    if(!collides(nx,player.y,player.w,player.h)) player.x=nx;
+    var ny=player.y+my*player.speed;
+    if(!collides(player.x,ny,player.w,player.h)) player.y=ny;
+    if(Math.abs(mx)>Math.abs(my)){ player.facing=mx>0?3:2; }
+    else if(my!==0){ player.facing=my>0?0:1; }
+    player.walkTimer++;
+    if(player.walkTimer>10){ player.frame=(player.frame+1)%2; player.walkTimer=0; }
+    // 脚印
+    if(player.walkTimer===0 && gameTime%4===0){
+      footprints.push({x:player.x+player.w/2+(mx>0?-2:(mx<0?2:0)), y:player.y+player.h-1, life:120});
+    }
+  } else {
+    player.frame=0; player.walkTimer=0;
+  }
+  if(player.invuln>0) player.invuln--;
+}
+
+// ── 触发掉落的柜子 ──
+function updateFallingCabinets(){
+  for(var i=0;i<fallingCabinets.length;i++){
+    var f=fallingCabinets[i];
+    if(f.triggered){
+      // 自由落体
+      f.fallVy+=0.6;  // 重力
+      f.y+=f.fallVy;
+      if(f.y>=f.targetY){
+        f.y=f.targetY;
+        f.fallVy=0;
+        // 落地震动
+        if(!f._shook){
+          f._shook=true;
+          screenShake=8;
+        }
+      }
+      continue;
+    }
+    // 检查玩家是否在触发区
+    var px=player.x+player.w/2, py=player.y+player.h/2;
+    if(px>f.x-14 && px<f.x+f.w+14 && py>f.y-40 && py<f.y+f.h+40){
+      f.triggered=true;
+      f.fallY=f.y-220;
+      f.y=f.fallY;
+      // 柜子掉落的反馈（黑影已在玩家进入地图时自动生成）
+      if(!f._firstDropTip){
+        f._firstDropTip=true;
+        tipText='柜子……掉下来了！';
+        tipTimer=120;
+        screenShake=4;
+        redFlashTimer=20;
+      } else {
+        screenShake=4;
+        tipText='又……掉下来一个！';
+        tipTimer=90;
+      }
+    }
+  }
+}
+
+// ── 追逐黑影更新 ──
+function updateChaser(){
+  if(DEV_NO_CHASER || !chaser) return;
+  if(gameTime<chaseStartFrame){
+    // 延迟中：只显示位置缓慢左移出现
+    chaser.x=B.L+10;
+    return;
+  }
+  // 定时重算路径（每 10 帧 ≈ 0.17s，反应更跟手）
+  chaser.pathTimer++;
+  // 记录上一次方向（用于惩罚掉头）
+  if(!chaser._lastDx){ chaser._lastDx=1; chaser._lastDy=0; }
+  if(!chaser.path || chaser.path.length===0 || chaser.pathTimer>10){
+    var tx=player.x+player.w/2;
+    var ty=player.y+player.h/2;
+    // 玩家方向上的预测点（A* 偏向"截击"前方而不是当前点，避免永远追尾）
+    var vx=keys['d']||keys['arrowright']?1:keys['a']||keys['arrowleft']?-1:0;
+    var vy=keys['s']||keys['arrowdown']?1:keys['w']||keys['arrowup']?-1:0;
+    if(vx!==0||vy!==0){
+      var mag=Math.sqrt(vx*vx+vy*vy);
+      tx += (vx/mag)*40;
+      ty += (vy/mag)*40;
+    }
+    var start={x:chaser.x+chaser.w/2, y:chaser.y+chaser.h/2};
+    var newPath=aStar(start.x,start.y,tx,ty);
+    if(newPath && newPath.length>0){
+      chaser.path=newPath;
+      chaser.pathIdx=0;
+      chaser.pathTimer=0;
+    } else {
+      // A* 失败：降级为直追（不撞墙也算动起来）
+      chaser.path=null;
+    }
+  }
+  var spd=player.speed*CHASE_CHASER_RATIO*CHASE_SPEED_MUL;
+  // 距离 < 130 时降低到玩家 0.5 倍速度，避免贴身秒死、给玩家挣脱空间
+  var distToPlayer=Math.sqrt((player.x+player.w/2-chaser.x)*(player.x+player.w/2-chaser.x)+(player.y+player.h/2-chaser.y)*(player.y+player.h/2-chaser.y));
+  if(distToPlayer<130){
+    spd=player.speed*0.5*CHASE_SPEED_MUL;
+  }
+  // 斜方向（dx、dy 都不为 0）走得更慢，模拟"斜着走更费力"
+  // 提前计算方向（两个分支都要用）
+  var chDirX=0, chDirY=0;
+  if(chaser.path && chaser.path.length>0){
+    var tg=chaser.path[Math.min(chaser.pathIdx, chaser.path.length-1)];
+    chDirX=tg.x-chaser.x; chDirY=tg.y-chaser.y;
+  } else {
+    chDirX=player.x+player.w/2-chaser.x; chDirY=player.y+player.h/2-chaser.y;
+  }
+  if(Math.abs(chDirX)>0.5 && Math.abs(chDirY)>0.5){
+    spd *= 0.85;
+  }
+  if(chaser.path && chaser.path.length>0){
+    var tgt=chaser.path[Math.min(chaser.pathIdx, chaser.path.length-1)];
+    var dx=tgt.x-chaser.x, dy=tgt.y-chaser.y;
+    var d=Math.sqrt(dx*dx+dy*dy);
+    if(d<3){
+      chaser.pathIdx++;
+      // 到终点：清空，下一帧重算（避免反复追同一格）
+      if(chaser.pathIdx>=chaser.path.length){
+        chaser.path=null;
+        chaser.pathTimer=999;
+      }
+    } else {
+      chaser.x+=dx/d*spd;
+      chaser.y+=dy/d*spd;
+      chaser._lastDx=dx/d; chaser._lastDy=dy/d;
+    }
+  } else {
+    // 降级：直追玩家（无碰撞，所以不卡）
+    var dx=player.x+player.w/2-chaser.x;
+    var dy=player.y+player.h/2-chaser.y;
+    var d=Math.sqrt(dx*dx+dy*dy);
+    if(d>0.5){
+      chaser.x+=dx/d*spd;
+      chaser.y+=dy/d*spd;
+      chaser._lastDx=dx/d; chaser._lastDy=dy/d;
+    }
+  }
+  // 上面 spd 已经根据距离调整过了
+  // 检测抓捕（扩大一点判定，更易追上）
+  if(player.invuln<=0){
+    var catchBox={x:chaser.x-4,y:chaser.y-4,w:chaser.w+8,h:chaser.h+8};
+    if(player.x<catchBox.x+catchBox.w && player.x+player.w>catchBox.x &&
+       player.y<catchBox.y+catchBox.h && player.y+player.h>catchBox.y){
+      // 被抓
+      caughtDeath=true;
+      caughtDeathStart=Date.now();
+      playerDead=true;
+      chaser=null;
+      setTimeout(function(){ window.location.href='start.html'; }, 1800);
+    }
+  }
+  // 脚印
+  if(gameTime%8===0){
+    footprints.push({x:chaser.x+chaser.w/2, y:chaser.y+chaser.h-1, life:140, dark:true});
+  }
+  if(redFlashTimer>0) redFlashTimer--;
+}
+
+// ── 坍塌墙检测（玩家靠近时缺口被填满 / 新墙从天而降）──
+var collapseDust=[];  // 坍塌灰尘粒子
+function spawnCollapseDust(cx,cy,count){
+  for(var i=0;i<count;i++){
+    collapseDust.push({
+      x:cx+(Math.random()-0.5)*12,
+      y:cy+Math.random()*24,
+      vx:(Math.random()-0.5)*1.4,
+      vy:Math.random()*0.8+0.4,
+      life:60+Math.floor(Math.random()*30),
+      size:1+Math.floor(Math.random()*2)
+    });
+  }
+}
+function triggerCollapse(opts){
+  // opts: {x,y,w,h, frame, tipText, screenShake, dustCount}
+  var fill={x:opts.x, y:opts.y, w:opts.w, h:opts.h};
+  walls.push(fill);
+  screenShake=opts.screenShake||12;
+  tipText=opts.tipText||'墙……塌下来了！';
+  tipTimer=120;
+  spawnCollapseDust(opts.x, opts.y, opts.dustCount||14);
+  return fill;
+}
+function updateCollapsingWalls(){
+  var pcx=player.x+player.w/2;
+  var pcy=player.y+player.h/2;
+
+  // 隔墙 C：x=700（原本 18px 短墙，玩家靠近后填充 64px 缺口 → 82px 完整墙）
+  if(!wall700Collapsed){
+    if(pcx>696 && pcx<708 && pcy>108 && pcy<190){
+      wall700Collapsed=true;
+      wall700CollapseFrame=gameTime;
+      wall700Fill=triggerCollapse({
+        x:700, y:126, w:4, h:64,
+        frame:gameTime, tipText:'墙……塌下来了！'
+      });
+    }
+  }
+
+  // 隔墙 F：x=830（原本完全不存在，玩家靠近时从天而降 4×80 完整墙，堵死主走廊）
+  if(!wall830Collapsed){
+    if(pcx>826 && pcx<838 && pcy>108 && pcy<190){
+      wall830Collapsed=true;
+      wall830CollapseFrame=gameTime;
+      wall830Fill=triggerCollapse({
+        x:830, y:108, w:4, h:80,
+        frame:gameTime,
+        tipText:'天花板塌了！快往上看路……',
+        screenShake:14,
+        dustCount:20
+      });
+    }
+  }
+
+  // 灰尘衰减
+  for(var i=collapseDust.length-1;i>=0;i--){
+    var d=collapseDust[i];
+    d.x+=d.vx; d.y+=d.vy; d.vy+=0.05; d.life--;
+    if(d.life<=0) collapseDust.splice(i,1);
+  }
+}
+
+// ── 找交互 ──
+function findInteraction(){
+  interactionHint=null;
+  if(player.x+player.w/2>exitZone.x && player.y>exitZone.y-10 && player.y<exitZone.y+exitZone.h+10){
+    interactionHint=exitZone;
+  }
+}
+
+// ── 帧更新 ──
+function update(){
+  gameTime++;
+  if(redFlashTimer>0) redFlashTimer--;
+  if(!playerDead){
+    updatePlayer();
+    updateFallingCabinets();
+    updateChaser();
+    updateCollapsingWalls();
+    findInteraction();
+  }
+  updateCamera();
+  if(tipTimer>0) tipTimer--;
+  if(tipTimer<=0) tipText='';
+  if(screenShake>0) screenShake--;
+  // 脚印衰减
+  for(var i=footprints.length-1;i>=0;i--){
+    footprints[i].life--;
+    if(footprints[i].life<=0) footprints.splice(i,1);
+  }
+}
+
+// ── 绘制基础 ──
+function pxRect(x,y,w,h,c){
+  ctx.fillStyle=c;
+  ctx.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h));
+}
+function pxText(text,x,y,c,size,align){
+  ctx.fillStyle=c||P.TEXT;
+  ctx.font=(size||12)+'px "Courier New","SimSun",monospace';
+  ctx.textAlign=align||'left';
+  ctx.textBaseline='top';
+  ctx.fillText(text,x,y);
+}
+function drawBorder(x,y,w,h,c,t){
+  t=t||2;
+  pxRect(x,y,w,t,c); pxRect(x,y+h-t,w,t,c);
+  pxRect(x,y,t,h,c);   pxRect(x+w-t,y,t,h,c);
+}
+
+// 装饰绘制
+function drawCrate(o){
+  pxRect(o.x,o.y,o.w,o.h,P.CRATE);
+  drawBorder(o.x,o.y,o.w,o.h,P.CRATE2,1);
+  // 中间钉
+  pxRect(o.x+o.w/2-1,o.y+o.h/2-1,2,2,'#2a1a08');
+  // 木纹
+  pxRect(o.x+2,o.y+2,o.w-4,1,'#5a4a30');
+  pxRect(o.x+2,o.y+o.h-3,o.w-4,1,'#5a4a30');
+}
+function drawCabinet(o){
+  pxRect(o.x,o.y,o.w,o.h,P.CABINET);
+  drawBorder(o.x,o.y,o.w,o.h,P.CABINET2,1);
+  // 柜门
+  pxRect(o.x+2,o.y+3,o.w-4,o.h-6,'#1a1a1a');
+  // 把手
+  pxRect(o.x+o.w-4,o.y+o.h/2-1,2,2,'#5a4a3a');
+  // 顶部标签
+  pxText('柜',o.x+o.w/2,o.y+o.h/2-3,'#444',6,'center');
+}
+function drawBench(o){
+  pxRect(o.x,o.y,o.w,o.h,P.BENCH);
+  drawBorder(o.x,o.y,o.w,o.h,P.BENCH2,1);
+  // 腿
+  pxRect(o.x+1,o.y+o.h-1,2,2,'#1a1a10');
+  pxRect(o.x+o.w-3,o.y+o.h-1,2,2,'#1a1a10');
+}
+function drawBarrel(o){
+  pxRect(o.x,o.y,o.w,o.h,P.BARREL);
+  drawBorder(o.x,o.y,o.w,o.h,P.BARREL2,1);
+  // 桶箍
+  pxRect(o.x,o.y+o.h/3,o.w,1,'#2a1a0a');
+  pxRect(o.x,o.y+o.h*2/3,o.w,1,'#2a1a0a');
+  // 高光
+  pxRect(o.x+2,o.y+2,2,o.h-4,'#5a3a24');
+}
+function drawFallingCabinet(f){
+  if(!f.triggered && f.y>=f.targetY) return;  // 未触发
+  // 触发前：上方露出一点点
+  if(!f.triggered){
+    pxRect(f.x+2, f.y+28, f.w-4, 4, P.CABINET);
+    return;
+  }
+  // 触发后：完整绘制
+  pxRect(f.x,f.y,f.w,f.h,P.CABINET);
+  drawBorder(f.x,f.y,f.w,f.h,P.CABINET2,1);
+  pxRect(f.x+2,f.y+3,f.w-4,f.h-6,'#1a1a1a');
+  pxRect(f.x+f.w-4,f.y+f.h/2-1,2,2,'#5a4a3a');
+  // 落地后画裂缝/灰尘
+  if(f.y>=f.targetY && f._shook){
+    pxRect(f.x-2,f.y+f.h,f.w+4,2,'#1a1a1a');
+  }
+}
+
+function drawPlayer(px,py){
+  if(player.invuln>0 && gameTime%4<2) return;  // 无敌闪烁
+  var ox=Math.floor(px);
+  var oy=Math.floor(py);
+  var pw=12,ph=18;
+  var f=player.facing; // 0=down 1=up 2=left 3=right
+
+  // Shadow
+  pxRect(ox+2,oy+ph-2,10,2,'rgba(0,0,0,0.5)');
+
+  // Legs
+  var legOff=player.frame*2;
+  if(f===0){ // facing down
+    pxRect(ox+2,oy+11,3,5,P.PLAYER);
+    pxRect(ox+7,oy+11,3,5,P.PLAYER);
+    if(player.frame===0){ pxRect(ox+2,oy+13+legOff,3,3,'#444'); pxRect(ox+7,oy+13-legOff,3,3,'#444'); }
+    else { pxRect(ox+2,oy+13-legOff,3,3,'#444'); pxRect(ox+7,oy+13+legOff,3,3,'#444'); }
+  }else if(f===1){ // facing up
+    pxRect(ox+2,oy+11,3,5,P.PLAYER);
+    pxRect(ox+7,oy+11,3,5,P.PLAYER);
+  }else{ // side
+    pxRect(ox+2,oy+11,3,5,P.PLAYER);
+    pxRect(ox+7,oy+11,3,5,P.PLAYER);
+    if(player.frame===0) pxRect(ox+2,oy+13+legOff,3,3,'#444');
+    else pxRect(ox+7,oy+13+legOff,3,3,'#444');
+  }
+
+  // Body
+  pxRect(ox+2,oy+6,8,7,'#777');
+  pxRect(ox+3,oy+6,6,7,P.PLAYER);
+
+  // Arms
+  if(f===2){ pxRect(ox,oy+7,3,4,P.PLAYER); } // left
+  else if(f===3){ pxRect(ox+9,oy+7,3,4,P.PLAYER); } // right
+  else{ pxRect(ox,oy+7,3,4,P.PLAYER); pxRect(ox+9,oy+7,3,4,P.PLAYER); }
+
+  // Head
+  pxRect(ox+3,oy,6,7,P.PLAYER2);
+  pxRect(ox+4,oy+1,4,5,'#ddd');
+  // Eyes
+  if(f===0){ pxRect(ox+5,oy+3,1,1,'#222');pxRect(ox+8,oy+3,1,1,'#222'); }
+  else if(f===1){ pxRect(ox+5,oy+2,1,1,'#222');pxRect(ox+8,oy+2,1,1,'#222'); }
+  else if(f===2){ pxRect(ox+4,oy+3,1,1,'#222'); }
+  else{ pxRect(ox+9,oy+3,1,1,'#222'); }
+  // Hair
+  pxRect(ox+3,oy,6,2,'#555');
+}
+
+function drawChaser(){
+  if(DEV_NO_CHASER || !chaser) return;
+  pxRect(chaser.x, chaser.y, chaser.w, chaser.h, '#000');
+  pxRect(chaser.x+chaser.w/2-2, chaser.y-9, 4, 10, '#000');
+  var glow=Math.sin(Date.now()*0.01)*0.25+0.4;
+  ctx.strokeStyle='rgba(140,0,0,'+glow+')';
+  ctx.lineWidth=2;
+  ctx.strokeRect(chaser.x-1, chaser.y-10, chaser.w+2, chaser.h+10);
+  // "黑 影" 文字提示
+  if(gameTime%30<15){
+    pxText('黑 影',chaser.x+chaser.w/2,chaser.y-22,'#a00',7,'center');
+  }
+}
+
+// drawSigns() 和 drawBranches() 已删除（用户要求删除地图上的字）
+
+// ── 走廊警报灯（红色流水闪烁 + 光晕）──
+function drawAlarmLights(){
+  var t=Date.now()*0.004;  // 整体闪烁频率
+  for(var i=0;i<alarmLights.length;i++){
+    var al=alarmLights[i];
+    // 每盏灯独立相位，流水灯效果
+    var pulse=Math.sin(t+al.phase)*0.5+0.5;  // 0..1
+    // 灯罩底座（暗灰）
+    pxRect(al.x-1, al.y-1, 4, 2, '#1a1410');
+    pxRect(al.x, al.y, 2, 1, '#2a2018');
+    // 灯泡（红色发光，颜色随 pulse 从暗红到亮红）
+    var r=Math.floor(120+pulse*135);
+    var g=Math.floor(pulse*30);
+    var b=Math.floor(pulse*20);
+    var color='rgb('+r+','+g+','+b+')';
+    pxRect(al.x, al.y+1, 2, 2, color);
+    // 光晕（径向渐变，亮灯时大）
+    if(pulse>0.3){
+      var gradAlpha=pulse*0.3;
+      var gradR=8+pulse*6;
+      var grad=ctx.createRadialGradient(al.x+1, al.y+2, 0, al.x+1, al.y+2, gradR);
+      grad.addColorStop(0, 'rgba(220,40,30,'+gradAlpha+')');
+      grad.addColorStop(1, 'rgba(220,40,30,0)');
+      ctx.fillStyle=grad;
+      ctx.fillRect(al.x-gradR, al.y-gradR, gradR*2, gradR*2);
+    }
+  }
+  // 额外：在主走廊地面投一道红色光带（流水效果）
+  var bandAlpha=Math.sin(t*0.7)*0.05+0.08;
+  ctx.fillStyle='rgba(180,30,20,'+bandAlpha+')';
+  ctx.fillRect(B.L, 130, B.R-B.L, 40);
+}
+
+function drawFootprints(){
+  for(var i=0;i<footprints.length;i++){
+    var f=footprints[i];
+    var alpha=Math.min(0.4, f.life/120*0.4);
+    pxRect(f.x-1,f.y,2,1,'rgba(60,60,60,'+alpha+')');
+    if(f.dark) pxRect(f.x-1,f.y,2,1,'rgba(80,0,0,'+alpha*0.6+')');
+  }
+}
+
+function drawExit(){
+  // 出口门（绿色微光 — 逃回一楼侧门通道）
+  var x=exitZone.x, y=exitZone.y, w=exitZone.w, h=exitZone.h;
+  pxRect(x,y,w,h,'#0a1a08');
+  drawBorder(x,y,w,h,'#1a3a1a',2);
+  // 文字
+  pxText('逃出',x+w/2,y-12,P.GREEN,8,'center');
+  // 微光
+  var grad=ctx.createRadialGradient(x+w/2,y+h/2,4,x+w/2,y+h/2,50);
+  grad.addColorStop(0,P.EXIT_GLOW);
+  grad.addColorStop(1,'rgba(80,200,80,0)');
+  ctx.fillStyle=grad;
+  ctx.fillRect(x-50,y-50,w+100,h+100);
+  // 提示
+  if(interactionHint && interactionHint.kind==='exit'){
+    var t=Math.sin(Date.now()*0.005)*0.3+0.5;
+    drawBorder(x-2,y-2,w+4,h+4,'rgba(120,220,120,'+t+')',1);
+    pxText('[F] 逃出一楼', x+w/2, y+h+6, '#8ac88a', 7, 'center');
+  }
+}
+
+function drawHUD(){
+  // 底部小提示
+  if(tipText){
+    var tw=tipText.length*8+16;
+    pxRect(W/2-tw/2,8,tw,18,'rgba(0,0,0,0.85)');
+    drawBorder(W/2-tw/2,8,tw,18,'#5a3a1a',1);
+    pxText(tipText,W/2,12,'#ffba6a',9,'center');
+  }
+  // 底部操作
+  pxRect(0,H-22,W,22,'rgba(0,0,0,0.75)');
+  pxText('WASD 移动  ·  F 互动',10,H-16,P.HUD,9);
+  // 进度
+  var pct=Math.min(1, player.x/(B.R-100));
+  var bw=200, bh=6;
+  var bx=W/2-bw/2, by=H-16;
+  pxRect(bx,by,bw,bh,'#222');
+  pxRect(bx,by,bw*pct,bh,'#3a5a3a');
+  pxText('距 离 出 口：' + Math.floor(pct*100)+'%',W/2,H-7,'#888',7,'center');
+}
+
+function drawChaserDeath(){
+  if(!caughtDeath) return;
+  var alpha=Math.min(1,(Date.now()-caughtDeathStart||0)/500);
+  pxRect(0,0,W,H,'rgba(0,0,0,'+alpha*0.7+')');
+  var sx2=(Math.random()-0.5)*4;
+  var sy2=(Math.random()-0.5)*4;
+  pxText('你死了',W/2+sx2+2,H/2+sy2-24+2,'#000',42,'center');
+  pxText('你死了',W/2+sx2,  H/2+sy2-24,  '#a00',42,'center');
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  var sx=screenShake>0?(Math.random()-0.5)*screenShake:0;
+  var sy=screenShake>0?(Math.random()-0.5)*screenShake:0;
+
+  // 世界层（相机跟随）
+  ctx.save();
+  ctx.translate(sx,sy);
+  ctx.translate(W/2,H/2);
+  ctx.scale(CAM_ZOOM,CAM_ZOOM);
+  ctx.translate(-camera.x,-camera.y);
+
+  // 地面（地板）
+  pxRect(B.L,B.T,B.R-B.L,B.B-B.T,P.FLOOR);
+
+  // 主走廊地板色
+  pxRect(B.L,110,B.R-B.L,80,P.HALL);
+  // 上辅走廊
+  pxRect(B.L,18,B.R-B.L,30,P.CORR);
+  // 下辅走廊
+  pxRect(B.L,252,B.R-B.L,30,P.CORR);
+
+  // 死路地板色（稍亮）
+  // 死路 1
+  pxRect(380,48,140,60,P.DEADEND);
+  // 死路 2
+  pxRect(740,190,160,62,P.DEADEND);
+  // 死路 3
+  pxRect(1180,48,160,60,P.DEADEND);
+  // 死路 4
+  pxRect(1580,190,160,62,P.DEADEND);
+  // 死路 5
+  pxRect(1960,48,160,60,P.DEADEND);
+
+  // 地板纹理（淡）
+  ctx.globalAlpha=0.06;
+  for(var gx=B.L;gx<B.R;gx+=24){
+    for(var gy=B.T;gy<B.B;gy+=24){
+      pxRect(gx,gy,1,1,'#fff');
+    }
+  }
+  ctx.globalAlpha=1;
+
+  // 主走廊中央线
+  ctx.globalAlpha=0.18;
+  pxRect(B.L,148,B.R-B.L,1,'#3a3a3a');
+  pxRect(B.L,154,B.R-B.L,1,'#3a3a3a');
+  ctx.globalAlpha=1;
+
+  // === 地图标牌已删除（用户要求）===
+
+  // 墙体
+  for(var i=0;i<walls.length;i++){
+    var w=walls[i];
+    if(w.h<=2) pxRect(w.x,w.y,w.w,w.h,P.WALL);
+    else if(w.w<=2) pxRect(w.x,w.y,w.w,w.h,P.WALL2);
+    else { pxRect(w.x,w.y,w.w,w.h,P.WALL3); drawBorder(w.x,w.y,w.w,w.h,P.WALL,1); }
+  }
+  // 坍塌墙视觉强调（x=700 隔墙 C，红色裂缝提示）
+  if(!wall700Collapsed){
+    // 缺口处画红色裂缝 + 闪烁警告（缺口从 y=126 延伸到 y=190，共 64px）
+    var blink=Math.sin(Date.now()*0.012)*0.4+0.5;
+    pxText('⚠', 700, 138, 'rgba(180,40,40,'+blink+')', 8, 'center');
+    // 裂缝（沿缺口散落 3 处）
+    pxRect(699,128,2,1,'rgba(120,30,20,0.6)');
+    pxRect(701,150,2,1,'rgba(120,30,20,0.6)');
+    pxRect(699,180,2,1,'rgba(120,30,20,0.6)');
+    // 提示文字"危险"
+    if(blink>0.7){
+      pxText('危 险',700,118,'#a04040',7,'center');
+    }
+  } else {
+    // 坍塌后：高亮填充段（深色） + 灰尘扩散
+    if(wall700Fill){
+      var fade=Math.min(1, (gameTime-wall700CollapseFrame)/30);
+      pxRect(700,126,4,64,'#1a1a1a');
+      // 裂缝
+      drawBorder(700,126,4,64,'#0a0a0a',1);
+      // 提示文字
+      if(gameTime-wall700CollapseFrame<90){
+        pxText('堵 死 了',700,120,'#a00',7,'center');
+      }
+    }
+  }
+
+  // 坍塌墙视觉强调（x=830 隔墙 F：原本不存在，玩家靠近时从天花板坠落）
+  if(!wall830Collapsed){
+    // 上方画悬吊的"危险块"（红色裂纹闪烁）
+    var blink2=Math.sin(Date.now()*0.01)*0.35+0.5;
+    // 顶部裂缝（沿主走廊上界上方画一条暗红色 X）
+    pxText('✕', 830, 96, 'rgba(200,60,40,'+blink2+')', 8, 'center');
+    // 上方悬垂裂纹（3 条小斜线）
+    pxRect(827,90,2,1,'rgba(140,40,20,0.7)');
+    pxRect(831,88,2,1,'rgba(140,40,20,0.7)');
+    pxRect(829,92,2,1,'rgba(140,40,20,0.7)');
+    // 警告文字（脉动）
+    if(blink2>0.6){
+      pxText('↑ 上 绕 行',830,82,'#c84040',7,'center');
+    }
+  } else {
+    // 坍塌后：完整隔墙
+    if(wall830Fill){
+      pxRect(830,108,4,80,'#1a1a1a');
+      drawBorder(830,108,4,80,'#0a0a0a',1);
+      // 顶端碎裂纹理
+      pxRect(826,104,12,1,'#2a2a2a');
+      pxRect(828,102,8,1,'#1a1a1a');
+      // 提示文字
+      if(gameTime-wall830CollapseFrame<90){
+        pxText('前 路 断 绝',830,98,'#a00',7,'center');
+      }
+    }
+  }
+  // 坍塌灰尘粒子
+  for(var i=0;i<collapseDust.length;i++){
+    var d=collapseDust[i];
+    var alpha=Math.min(0.5, d.life/60*0.5);
+    pxRect(d.x,d.y,d.size,d.size,'rgba(160,140,100,'+alpha+')');
+  }
+  // 外框
+  drawBorder(B.L,B.T,B.R-B.L,B.B-B.T,'#4a4a4a',4);
+
+  // 走廊警报灯（流水闪烁）
+  drawAlarmLights();
+
+  // 静态障碍
+  for(var i=0;i<obstacles.length;i++){
+    var o=obstacles[i];
+    if(o.kind==='crate') drawCrate(o);
+    else if(o.kind==='cabinet') drawCabinet(o);
+    else if(o.kind==='bench') drawBench(o);
+    else if(o.kind==='barrel') drawBarrel(o);
+  }
+
+  // 掉落的柜子
+  for(var i=0;i<fallingCabinets.length;i++){
+    drawFallingCabinet(fallingCabinets[i]);
+  }
+
+  // 脚印
+  drawFootprints();
+
+  // 出口
+  drawExit();
+
+  // 玩家 & 黑影
+  drawPlayer(player.x,player.y);
+  drawChaser();
+
+  // 黑暗遮罩（玩家周围可见，远处渐入黑暗 — 增强版，视野更小压迫感更强）
+  var px2=player.x+player.w/2;
+  var py2=player.y+player.h/2;
+  var grad=ctx.createRadialGradient(px2,py2,25,px2,py2,180);
+  grad.addColorStop(0,'rgba(0,0,0,0)');
+  grad.addColorStop(0.15,'rgba(0,0,0,0.55)');
+  grad.addColorStop(0.35,'rgba(0,0,0,0.85)');
+  grad.addColorStop(0.55,'rgba(0,0,0,0.95)');
+  grad.addColorStop(0.75,'rgba(0,0,0,1)');
+  grad.addColorStop(1,'rgba(0,0,0,1)');
+  ctx.fillStyle=grad;
+  ctx.fillRect(B.L,B.T,B.R-B.L,B.B-B.T);
+
+  ctx.restore();
+
+  // 红闪（追逐中持续 sin 波 + 短促增强）
+  if(redFlashOn && !playerDead){
+    // 持续基础红光（脉动）
+    var rf=Math.sin(Date.now()*0.008)*0.06+0.10;
+    pxRect(0,0,W,H,'rgba(160,0,0,'+rf+')');
+    // 短促强闪（叠加在 redFlashTimer 触发时）
+    if(redFlashTimer>0){
+      var flashAlpha=redFlashTimer/30*0.18;
+      pxRect(0,0,W,H,'rgba(200,0,0,'+flashAlpha+')');
+    }
+    // 屏幕边缘暗角（vignette）
+    var vg=ctx.createRadialGradient(W/2,H/2,W*0.3,W/2,H/2,W*0.7);
+    vg.addColorStop(0,'rgba(0,0,0,0)');
+    vg.addColorStop(1,'rgba(60,0,0,0.35)');
+    ctx.fillStyle=vg;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // 死亡叠层
+  drawChaserDeath();
+
+  // HUD
+  drawHUD();
+}
+
+// ── 主循环 ──
+function loop(){
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+loop();
+
+})();
+</script>
+</body>
+</html>

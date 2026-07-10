@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星榆中学官方网站 - 2008</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "宋体", SimSun, serif;
+            background-color: #f5f5dc;
+            color: #333;
+            line-height: 1.6;
+        }
+        #page { opacity: 0; transition: opacity 1.2s ease; }
+        #page.fade-in { opacity: 1; }
+        #page.fade-out { opacity: 0; }
+
+        .header {
+            background-color: #003366;
+            color: #fff;
+            padding: 15px;
+            text-align: center;
+            position: fixed;
+            top: 46px;
+            width: 100%;
+            z-index: 1000;
+            border-bottom: 3px solid #ffcc00;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .nav {
+            background-color: #004080;
+            padding: 10px;
+            text-align: center;
+            position: fixed;
+            top: 126px;
+            width: 100%;
+            z-index: 999;
+        }
+
+        .nav a {
+            color: #fff;
+            text-decoration: none;
+            margin: 0 20px;
+            font-size: 16px;
+            border-bottom: 1px dashed transparent;
+        }
+
+        .nav a:hover {
+            border-bottom: 1px solid #fff;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 186px auto 30px;
+            padding: 20px;
+            background-color: #fff;
+            border: 2px solid #ccc;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            background-color: #003366;
+            color: #fff;
+            padding: 10px 15px;
+            margin: 20px -20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .announcement {
+            border: 1px solid #ddd;
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #fafafa;
+            position: relative;
+        }
+
+        .announcement.important {
+            border-left: 5px solid #ff0000;
+            background-color: #fff0f0;
+        }
+
+        .announcement-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .announcement-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #003366;
+        }
+
+        .announcement-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .announcement-content {
+            font-size: 14px;
+            line-height: 1.8;
+            text-indent: 2em;
+        }
+
+        .announcement-content ul, .announcement-content ol {
+            margin-left: 2em;
+            margin-top: 10px;
+        }
+
+        .announcement-content li {
+            margin-bottom: 8px;
+        }
+
+        .broken-image {
+            width: 120px;
+            height: 90px;
+            border: 1px solid #999;
+            background-color: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ff0000;
+            font-size: 24px;
+            float: right;
+            margin: 10px 0 10px 15px;
+        }
+
+        .encrypted {
+            filter: blur(5px);
+            user-select: none;
+            pointer-events: none;
+            transition: filter 0.3s;
+        }
+
+        .encrypted.unlocked {
+            filter: blur(0);
+            user-select: text;
+            pointer-events: auto;
+        }
+
+        .password-prompt {
+            text-align: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+            margin: 10px 0;
+            border: 1px dashed #999;
+        }
+
+        .password-input {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            margin-right: 10px;
+            width: 150px;
+        }
+
+        .password-btn {
+            padding: 8px 20px;
+            background-color: #003366;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .password-btn:hover {
+            background-color: #004080;
+        }
+
+        .forum-section {
+            background-color: #e8e8e8;
+            border: 2px solid #666;
+            margin-top: 30px;
+        }
+
+        .forum-header {
+            background-color: #800000;
+            color: #fff;
+            padding: 12px 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .forum-info {
+            padding: 10px 15px;
+            background-color: #d0d0d0;
+            font-size: 13px;
+            color: #333;
+            border-bottom: 1px solid #999;
+        }
+
+        .post {
+            background-color: #fff;
+            margin: 10px 15px;
+            border: 1px solid #ccc;
+            padding: 15px;
+        }
+
+        .post-header {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .post-author {
+            font-weight: bold;
+            color: #003366;
+        }
+
+        .post-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 10px;
+        }
+
+        .post-content {
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .post-content ul, .post-content ol {
+            margin-left: 2em;
+            margin-top: 10px;
+        }
+
+        .post-content li {
+            margin-bottom: 8px;
+        }
+
+        .reply {
+            background-color: #f9f9f9;
+            margin: 10px 25px;
+            padding: 10px;
+            border-left: 3px solid #ccc;
+            font-size: 13px;
+        }
+
+        .reply-author {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        .footer {
+            background-color: #003366;
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+            margin-top: 30px;
+            font-size: 12px;
+            position: relative;
+        }
+
+        .footer-logo {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #ffcc00;
+            margin: 10px auto;
+            background: linear-gradient(45deg, transparent 40%, #ff0000 40%, #ff0000 60%, transparent 60%);
+            position: relative;
+        }
+
+        .footer-logo::before {
+            content: "校徽";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 12px;
+            z-index: 1;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            border: 3px solid #003366;
+            position: relative;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .close-modal:hover {
+            color: #000;
+        }
+
+        .report-btn {
+            display: block;
+            margin: 10px auto 0;
+            padding: 6px 18px;
+            background-color: #cc0000;
+            color: #fff;
+            border: 1px solid #990000;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: 'SimSun', serif;
+        }
+        .report-btn:hover {
+            background-color: #ff0000;
+        }
+
+        .error-modal-content {
+            background-color: #fff;
+            padding: 30px;
+            max-width: 450px;
+            width: 90%;
+            border: 3px solid #cc0000;
+            position: relative;
+        }
+        .error-modal-content h3 {
+            color: #cc0000;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .error-modal-content ul {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+        .error-modal-content ul li {
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        .error-modal-content .rollback-btn {
+            display: block;
+            width: 100%;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            font-family: 'SimSun', serif;
+        }
+        .error-modal-content .rollback-btn:hover {
+            background-color: #555;
+        }
+
+        .tab-container {
+            display: flex;
+            border-bottom: 2px solid #003366;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 25px;
+            cursor: pointer;
+            background-color: #e0e0e0;
+            border: 1px solid #999;
+            border-bottom: none;
+            margin-right: 5px;
+        }
+
+        .tab.active {
+            background-color: #003366;
+            color: #fff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .hint-box {
+            background-color: #fffacd;
+            border: 1px solid #ffd700;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 13px;
+        }
+
+        .glitch-text {
+            animation: glitch 2s infinite;
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+
+        .typing-effect {
+            overflow: hidden;
+            border-right: 2px solid #333;
+            white-space: nowrap;
+            animation: typing 3s steps(40, end);
+        }
+
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        /* ── CRT 老式电脑特效 ── */
+        html {
+            filter: saturate(0.5) contrast(0.9) blur(0.3px);
+        }
+        #crt-flash {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9997;
+            background: transparent;
+            transition: background 0.05s;
+        }
+
+        /* ── 老式电脑显示器外框 ── */
+        #monitor-frame {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 10000;
+            box-sizing: border-box;
+            border: 46px solid #262626;
+            border-radius: 26px;
+            background: transparent;
+            box-shadow:
+                inset 0 0 0 1px rgba(255,255,255,0.03),
+                inset 0 0 0 3px #151515,
+                inset 0 0 0 5px #343434,
+                inset 0 0 0 6px #111,
+                0 0 0 4px #1c1c1c,
+                0 0 0 6px #363636,
+                0 0 0 8px #131313,
+                0 0 60px rgba(0,0,0,0.7);
+        }
+
+        #monitor-frame::before {
+            content: '星榆';
+            position: fixed;
+            bottom: 11px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #3d3d3d;
+            font-size: 11px;
+            font-family: "宋体", SimSun, serif;
+            letter-spacing: 8px;
+            z-index: 10001;
+            pointer-events: none;
+        }
+
+        #monitor-frame::after {
+            content: '';
+            position: fixed;
+            bottom: 14px;
+            right: 84px;
+            width: 6px; height: 6px;
+            background: #3f3;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #3f3, 0 0 16px #3f3;
+            z-index: 10001;
+        }
+
+        /* ── 关闭按钮（显示器电源键） ── */
+        #power-btn {
+            position: fixed;
+            bottom: 7px;
+            right: 18px;
+            z-index: 10001;
+            pointer-events: auto;
+            cursor: pointer;
+            background: linear-gradient(180deg, #3d3d3d, #1e1e1e);
+            color: #777;
+            border: 1px solid #151515;
+            border-top-color: #444;
+            border-left-color: #3a3a3a;
+            padding: 4px 16px;
+            font-family: "宋体", SimSun, serif;
+            font-size: 11px;
+            letter-spacing: 3px;
+            border-radius: 3px;
+            user-select: none;
+            text-align: center;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.04);
+        }
+        #power-btn:hover {
+            color: #bbb;
+            background: linear-gradient(180deg, #4a4a4a, #282828);
+        }
+        #power-btn:active {
+            background: linear-gradient(180deg, #1a1a1a, #2a2a2a);
+            border-top-color: #222;
+            border-left-color: #222;
+            color: #555;
+            box-shadow: none;
+            transform: translateY(1px);
+        }
+
+        /* ── 黑屏：好结局 ── */
+        #black-screen {
+            position: fixed; inset: 0; z-index: 13000;
+            background:
+                radial-gradient(circle at 50% 40%, #5a4716 0%, #3a2c0c 45%, #1c1405 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; opacity: 0; pointer-events: none; transition: opacity 1.4s ease;
+        }
+        #black-screen.show { opacity: 1; pointer-events: auto; }
+        #black-screen::before {
+            content: ''; position: absolute; inset: 0; pointer-events: none;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0 1px, transparent 1px 3px);
+            z-index: 0;
+        }
+        #black-screen .ge-title {
+            font-family: "宋体", SimSun, serif; font-size: 44px; letter-spacing: 14px;
+            color: #ffe9a8; margin-bottom: 26px; text-shadow: 0 0 18px #d4af37, 0 0 36px #a8781a;
+            position: relative; z-index: 2;     /* 文字在泡泡之上 */
+        }
+
+        /* ── 闪烁金光图案：在金色底上随机浮动 ── */
+        .ge-bubbles { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 1; }
+        .ge-bubbles .bubble { position: absolute; bottom: -40px; border-radius: 50%; background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 1) 0%, rgba(255, 250, 200, 0.95) 25%, rgba(255, 220, 120, 0.5) 60%, rgba(255, 200, 80, 0) 100%); box-shadow: 0 0 8px 3px rgba(255, 250, 200, 0.95), 0 0 20px 8px rgba(255, 230, 130, 0.7), 0 0 40px 16px rgba(255, 200, 80, 0.45), inset 0 0 6px rgba(255, 255, 255, 1); opacity: 0; will-change: transform, opacity, box-shadow; animation-name: ge-float, ge-blink, ge-shine; animation-timing-function: linear, ease-in-out, ease-in-out; animation-iteration-count: infinite, infinite, infinite; }
+        @keyframes ge-float { 0% { transform: translate(0, 0) scale(var(--s, 1)); } 25% { transform: translate(18px, -28vh) scale(var(--s, 1)); } 50% { transform: translate(-14px, -55vh) scale(var(--s, 1)); } 75% { transform: translate(22px, -82vh) scale(var(--s, 1)); } 100% { transform: translate(-8px, -110vh) scale(var(--s, 1)); } }
+        @keyframes ge-blink { 0%, 100% { opacity: 0; } 10%, 90% { opacity: 0.8; } }
+        @keyframes ge-shine { 0%, 100% { box-shadow: 0 0 6px 2px rgba(255, 250, 200, 0.6), 0 0 14px 6px rgba(255, 230, 130, 0.4), 0 0 28px 12px rgba(255, 200, 80, 0.2), inset 0 0 4px rgba(255, 255, 255, 0.8); } 50% { box-shadow: 0 0 12px 5px rgba(255, 255, 230, 1), 0 0 28px 12px rgba(255, 240, 150, 0.95), 0 0 56px 24px rgba(255, 210, 100, 0.65), inset 0 0 8px rgba(255, 255, 255, 1); } }
+        #black-screen .ge-desc {
+            font-family: "宋体", SimSun, serif; font-size: 16px; line-height: 2.2;
+            color: #f3e4bd; max-width: 640px; padding: 0 24px; letter-spacing: 1px;
+            white-space: pre-line; text-align: left;
+            text-shadow: 0 0 8px rgba(0,0,0,0.6);
+        }
+        #black-screen .ge-over {
+            margin-top: 34px; font-family: "宋体", SimSun, serif; font-size: 14px;
+            color: #d8c184; letter-spacing: 6px;
+        }
+        #black-screen .ge-hint {
+            margin-top: 20px; font-family: "宋体", SimSun, serif; font-size: 13px;
+            color: #b89a52; letter-spacing: 3px; opacity: 0; transition: opacity 0.8s ease;
+        }
+        #black-screen .ge-hint.show { opacity: 1; }
+        #black-screen .ge-extra { opacity: 0; }
+        #black-screen .ge-extra.flicker { animation: ge-flicker 2.6s ease forwards; }
+        @keyframes ge-flicker {
+            0%   { opacity: 0; }
+            8%   { opacity: 0.9; }
+            11%  { opacity: 0.1; }
+            20%  { opacity: 1; }
+            24%  { opacity: 0.2; }
+            36%  { opacity: 0.85; }
+            42%  { opacity: 0; }
+            52%  { opacity: 0.8; }
+            60%  { opacity: 0.1; }
+            72%  { opacity: 1; }
+            80%  { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        /* audio 元素无 controls 默认不显示，但不能用 display:none，否则部分浏览器会跳过加载 */
+        audio#ending-bgm { width: 0; height: 0; position: absolute; left: -9999px; }
+        #play-bgm-btn { position: fixed; top: 60px; right: 18px; z-index: 13001;
+            padding: 6px 14px; background: rgba(0,0,0,0.5); color: #ffe9a8;
+            border: 1px solid #d4af37; font-family: 'SimSun', serif; font-size: 13px;
+            cursor: pointer; border-radius: 3px; letter-spacing: 2px; } /* 已不再使用（自动播放能成功），保留规则以兼容历史缓存 */
+    #black-screen .typing::after {
+            content: '▌'; margin-left: 2px; color: #ffe9a8;
+            animation: ge-blink 1s steps(1,end) infinite;
+        }
+        @keyframes ge-blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+<div id="page">
+
+<div id="crt-flash"></div>
+<div id="monitor-frame"></div>
+
+<div class="header">
+    <h1>立德树人 勤学笃行｜星榆乡镇中学</h1>
+    <p>星榆中学官方网站 · 建校于1985年 · 为国育才</p>
+</div>
+
+<nav class="nav">
+</nav>
+
+<div class="container">
+    <div style="text-align: center; padding: 80px 20px 60px;">
+        <div style="font-size: 140px; font-weight: bold; color: #003366; letter-spacing: 14px; line-height: 1; opacity: 0.85;">404</div>
+        <div style="font-size: 18px; color: #999; margin-top: 16px; letter-spacing: 3px;">页面已不存在</div>
+    </div>
+    <div class="footer">
+        <div class="footer-logo"></div>
+        <p>© 2008 星榆中学 版权所有 | 联系电话：(0571)XXXX-XXXX</p>
+        <p>地址：浙江省杭州市星榆镇教育路88号 | 邮编：310000</p>
+        <p style="margin-top: 10px; font-size: 11px; opacity: 0.7;">
+            本网站将于2008年9月15日正式停止运营 | 最后更新时间：2008-09-12 09:17
+        </p>
+        <p style="font-size: 10px; color: #ff6666; margin-top: 5px;">
+            ⚠️ 如遇异常现象请立即联系值班教师 | 切勿在三楼区域逗留
+        </p>
+    </div>
+</div>
+
+</div><!-- /#page -->
+
+<div id="black-screen">
+    <div class="ge-bubbles" id="ge-bubbles"></div>
+    <div class="ge-title" data-text="好 结 局">好 结 局</div>
+    <div class="ge-desc" data-text="2008年，星榆中学三楼实验室在一次违规实验中发生意外，八名高三学生被实验仪器产生的精神场困住、渐渐失去自我，化作无脸的蓝白校服人影，每晚二十点半仍在三楼集体朗读；校方为掩盖真相，以「危房」为由封校，编造转学谣言，用红色药剂压制学生的幻觉、用镜子与监控封锁真相。而你这一次没有逃避——你直面了三楼的回响，毁掉了实验室的核心仪器，让被掩埋的真相重见天日。星榆中学的诅咒就此终结，2009年的新生不必再步2008届的后尘。">2008年，星榆中学三楼实验室在一次违规实验中发生意外，八名高三学生被实验仪器产生的精神场困住、渐渐失去自我，化作无脸的蓝白校服人影，每晚二十点半仍在三楼集体朗读；校方为掩盖真相，以「危房」为由封校，编造转学谣言，用红色药剂压制学生的幻觉、用镜子与监控封锁真相。而你这一次没有逃避——你直面了三楼的回响，毁掉了实验室的核心仪器，让被掩埋的真相重见天日。星榆中学的诅咒就此终结，2009年的新生不必再步2008届的后尘。</div>
+    <div class="ge-over" data-text="故 事 完 结">故 事 完 结</div>
+    <div class="ge-extra" style="margin-top: 22px; font-family: '宋体', SimSun, serif; font-size: 14px; letter-spacing: 2px; color: #ff3030; text-shadow: 0 0 8px rgba(255,0,0,0.5);">可是那些你无数次在电脑、档案里看到的名字....他们究竟去哪里了？</div>
+    <div class="ge-hint">—— 点击任意位置返回首页 ——</div>
+</div>
+
+<!-- 在 bgm.js 加载前先禁用恐怖 BGM 自动恢复，避免与好结局音乐冲突 -->
+<script>
+try {
+    localStorage.setItem('bgm_playing', 'false');
+    sessionStorage.removeItem('chaseOn');
+} catch(e) {}
+// 拦截 bgm.js 在 DOMContentLoaded 时的自动恢复
+window.__xyzh_block_bgm_autostart = true;
+</script>
+<script src="bgm.js"></script>
+
+<!-- ── 好结局背景音乐（自动播放） ── -->
+<!-- 不再用 <audio>，因为 Chrome 在 file:// 协议下会拒绝播放 MP3（错误码 4）。
+     改用 Web Audio API：fetch + decodeAudioData 拉数据并解码，直接由 AudioContext 输出。
+     这样 file:// / http:// 都能响。 -->
+
+<!-- ── 好结局：开场淡入 → 3秒后淡出 → 黑屏打字 → 淡出 ── -->
+<script>
+// 启动好结局背景音乐（Web Audio 版本，兼容 file://）
+(function(){
+    var btn = document.getElementById('play-bgm-btn');
+    var URL_FILE = 'good_ending_music.mp3';
+    var ctx = null, source = null, gainNode = null, buffer = null;
+    var started = false, fadeInterval = null;
+
+    // 0. 清场：暂停页面里所有 <audio> 元素
+    function clearOthers(){
+        document.querySelectorAll('audio').forEach(function(a){
+            try { a.pause(); a.currentTime = 0; a.muted = true; } catch(e) {}
+        });
+    }
+    clearOthers();
+
+    // 1. 关闭恐怖 BGM
+    try { if(window.BGM && BGM.stop) BGM.stop(); } catch(e) {}
+    try { if(window.BGM && BGM.stopChase) BGM.stopChase(); } catch(e) {}
+    try { localStorage.setItem('bgm_playing', 'false'); } catch(e) {}
+    try { sessionStorage.removeItem('chaseOn'); } catch(e) {}
+
+    function ensureCtx(){
+        if(!ctx){
+            try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ ctx = null; }
+        }
+        if(ctx && ctx.state === 'suspended'){
+            try { ctx.resume(); } catch(e){}
+        }
+        return ctx;
+    }
+
+    function loadBuffer(){
+        if(buffer) return Promise.resolve(buffer);
+        console.log('[好结局BGM] fetch + decodeAudioData:', URL_FILE);
+        return fetch(URL_FILE)
+            .then(function(r){
+                if(!r.ok) throw new Error('HTTP ' + r.status);
+                return r.arrayBuffer();
+            })
+            .then(function(ab){
+                var c = ensureCtx();
+                if(!c) throw new Error('AudioContext 不可用');
+                return c.decodeAudioData(ab);
+            })
+            .then(function(buf){
+                buffer = buf;
+                console.log('[好结局BGM] 解码完成, duration=', buf.duration, '秒, channels=', buf.numberOfChannels);
+                return buf;
+            });
+    }
+
+    function startBgm(){
+        if(started) return;
+        var c = ensureCtx();
+        if(!c){
+            console.error('[好结局BGM] AudioContext 创建失败');
+            if(btn){ btn.innerHTML = '⚠ 浏览器不支持音频'; btn.style.color = '#ff8888'; }
+            return;
+        }
+        started = true;
+        clearOthers();
+        loadBuffer().then(function(buf){
+            // 重新建一个 source（BufferSource 只能 start 一次）
+            source = c.createBufferSource();
+            source.buffer = buf;
+            source.loop = true;
+            gainNode = c.createGain();
+            gainNode.gain.value = 0;
+            source.connect(gainNode);
+            gainNode.connect(c.destination);
+            source.start(0);
+            // 淡入到 0.6
+            var t0 = c.currentTime;
+            gainNode.gain.linearRampToValueAtTime(0.6, t0 + 1.5);
+            if(btn) btn.style.display = 'none';
+            console.log('[好结局BGM] 播放成功, 音量淡入到 0.6');
+        }).catch(function(err){
+            console.error('[好结局BGM] 加载失败:', err && err.message);
+            if(btn){
+                btn.innerHTML = '⚠ 音乐加载失败（点这里重试）';
+                btn.style.color = '#ff8888';
+                btn.style.borderColor = '#ff4444';
+            }
+            started = false;       // 允许重试
+        });
+    }
+
+    // 3. 首次交互兜底（自动播放策略下，无手势时 AudioContext.start 可能被拒）
+    var onFirstInteract = function(){
+        if(started) return;
+        startBgm();
+        document.removeEventListener('click', onFirstInteract, true);
+        document.removeEventListener('keydown', onFirstInteract, true);
+        document.removeEventListener('touchstart', onFirstInteract, true);
+    };
+    document.addEventListener('click', onFirstInteract, true);
+    document.addEventListener('keydown', onFirstInteract, true);
+    document.addEventListener('touchstart', onFirstInteract, true);
+
+    // 4. 播放按钮（兜底 + 失败重试）
+    if(btn){
+        btn.addEventListener('click', function(e){
+            e.stopPropagation();
+            startBgm();
+        });
+    }
+
+    // 5. ★ 自动播放：页面加载即尝试。Web Audio 在 file:// 下也需要用户手势解锁，
+    //    因此会在 onFirstInteract / 按钮中兜底；如能成功则立即出声。
+    window.addEventListener('load', function(){
+        startBgm();
+    });
+
+    // 暴露给打字完成后的 goHome 用
+    window.__endingBgmStop = function(){
+        try { if(source){ source.stop(); source.disconnect(); } } catch(e){}
+        try { if(gainNode) gainNode.disconnect(); } catch(e){}
+        source = null; gainNode = null;
+    };
+})();
+
+// 泡泡在标题"好 结 局"打字完成后才生成（见 typeWriter 回调）
+
+// 开场淡入，淡入完成后开始 3 秒计时
+window.addEventListener('load', function(){
+    var pg=document.getElementById('page');
+    if(pg) pg.classList.add('fade-in');
+    startGoodEnding();
+});
+
+function typeWriter(el, text, done){
+    if(!el){ if(done) done(); return; }
+    el.textContent='';
+    el.classList.add('typing');
+    var i=0;
+    var timer=setInterval(function(){
+        if(i<text.length){
+            el.textContent += text[i++];
+        }else{
+            clearInterval(timer);
+            el.classList.remove('typing');
+            if(done) done();
+        }
+    }, 45);
+}
+
+// 生成金色小泡泡（全局函数，IIFE 外部可调用）
+function spawnBubbles(){
+    var box = document.getElementById('ge-bubbles');
+    if(!box) return;
+    // 避免重复生成
+    if(box.dataset.spawned === '1') return;
+    box.dataset.spawned = '1';
+    var COUNT = 50;
+    for(var i=0; i<COUNT; i++){
+        var d = document.createElement('div');
+        d.className = 'bubble';
+        // 随机大小 12 ~ 36 px（更显眼）
+        var size = (12 + Math.random() * 24).toFixed(1);
+        // 随机横向起始位置 0% ~ 100%
+        var left = (Math.random() * 100).toFixed(1);
+        // 随机动画时长 8 ~ 22 秒
+        var dur = (8 + Math.random() * 14).toFixed(1);
+        // 随机开始延迟 0 ~ 12 秒（错开）
+        var delay = (Math.random() * 12).toFixed(1);
+        // 随机不透明度 0.7 ~ 1（更亮）
+        var op = (0.7 + Math.random() * 0.3).toFixed(2);
+        // 随机缩放 0.8 ~ 1.4
+        var sc = (0.8 + Math.random() * 0.6).toFixed(2);
+        d.style.width  = size + 'px';
+        d.style.height = size + 'px';
+        d.style.left   = left + '%';
+        // 三件套：ge-float(上浮+摆动) + ge-blink(淡入淡出) + ge-shine(金光闪烁)
+        var shineDur = (1.2 + Math.random() * 1.6).toFixed(2);
+        d.style.animation =
+            'ge-float ' + dur + 's linear -' + delay + 's infinite, ' +
+            'ge-blink ' + (2 + Math.random()*3).toFixed(1) + 's ease-in-out -' + (Math.random()*3).toFixed(1) + 's infinite, ' +
+            'ge-shine ' + shineDur + 's ease-in-out -' + (Math.random()*shineDur).toFixed(2) + 's infinite';
+        d.style.setProperty('--o', op);
+        d.style.setProperty('--s', sc);
+        box.appendChild(d);
+    }
+    console.log('[好结局光点] 已生成', COUNT, '个金色闪烁光点');
+}
+
+function startGoodEnding(){
+setTimeout(function(){
+    // 1. 上一页（带 404 的官网）淡出
+    var pg=document.getElementById('page');
+    if(pg) pg.classList.add('fade-out');
+    // 2. 黑屏淡入
+    var b=document.getElementById('black-screen');
+    if(b) b.classList.add('show');
+    // 2.5 闪烁金光生成在标题"好 结 局"打字完成时（见 typeWriter 回调）
+    // 3. 依次逐字打字：标题 → 谜底揭示 → 完结
+    var bt=b?b.querySelector('.ge-title'):null;
+    var bd=b?b.querySelector('.ge-desc'):null;
+    var bo=b?b.querySelector('.ge-over'):null;
+    var t1=bt?bt.getAttribute('data-text'):'';
+    var t2=bd?bd.getAttribute('data-text'):'';
+    var t3=bo?bo.getAttribute('data-text'):'';
+    typeWriter(bt,t1,function(){
+        // ★ 标题"好 结 局"打完字后生成金色闪烁光点
+        if (typeof spawnBubbles === 'function') spawnBubbles();
+        typeWriter(bd,t2,function(){
+            typeWriter(bo,t3, function(){
+                // 4. 打字完成后显示提示小字，并等待点击页面才返回标题
+                var bh=b?b.querySelector('.ge-hint'):null;
+                if(bh) bh.classList.add('show');
+                // 红字在所有字体出现之后才开始闪烁浮现
+                var be=b?b.querySelector('.ge-extra'):null;
+                if(be) setTimeout(function(){ be.classList.add('flicker'); }, 600);
+                var jumped=false;
+                function goHome(){
+                    if(jumped) return; jumped=true;
+                    try{
+                        if(window.__endingBgmStop) window.__endingBgmStop();
+                    }catch(e){}
+                    window.location.href='start.html';
+                }
+                if(b) b.style.cursor='pointer';
+                if(b) b.addEventListener('click', goHome);
+                document.addEventListener('click', goHome);
+            });
+        });
+    });
+    if(window.SaveSystem) SaveSystem.recordEnding('好结局');
+}, 3000);
+}
+</script>
+
+</body>
+</html>

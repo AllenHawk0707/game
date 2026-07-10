@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星榆中学档案室 - 任务日志</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Tahoma, "宋体", SimSun, sans-serif;
+            font-size: 12px;
+            background-color: #ece9d8;
+            color: #000;
+            margin: 0;
+            padding: 46px;
+            min-height: 100vh;
+        }
+
+        .xp-window {
+            background-color: #0054e3;
+            color: #fff;
+            padding: 4px 6px;
+            font-weight: bold;
+            font-size: 13px;
+            border: 2px solid #0055ea;
+            border-bottom: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .window-title {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .window-icon {
+            width: 16px;
+            height: 16px;
+            background-color: #ffcc00;
+            border: 1px solid #000;
+        }
+
+        .window-buttons {
+            display: flex;
+            gap: 2px;
+        }
+
+        .window-btn {
+            width: 21px;
+            height: 21px;
+            background-color: #316ac5;
+            border: 1px solid #0054e3;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+            line-height: 19px;
+            font-size: 14px;
+        }
+
+        .window-btn:hover {
+            background-color: #4a90e2;
+        }
+
+        .main-content {
+            background-color: #fff;
+            border: 2px solid #0055ea;
+            border-top: none;
+            min-height: 600px;
+            padding: 10px;
+        }
+
+        .toolbar {
+            background-color: #ece9d8;
+            border: 1px solid #aca899;
+            padding: 4px;
+            margin-bottom: 10px;
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-btn {
+            padding: 4px 12px;
+            background-color: #f5f5f5;
+            border: 1px solid #aca899;
+            border-right: 1px solid #fff;
+            border-bottom: 1px solid #fff;
+            cursor: pointer;
+            font-family: Tahoma, sans-serif;
+            font-size: 11px;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .toolbar-btn:hover {
+            background-color: #316ac5;
+            color: #fff;
+            border: 1px solid #00218c;
+        }
+
+        .toolbar-btn.active {
+            background-color: #316ac5;
+            color: #fff;
+            border: 1px solid #00218c;
+            border-right: 1px solid #0a246a;
+            border-bottom: 1px solid #0a246a;
+        }
+
+        .content-area {
+            background-color: #fff;
+            border: 1px inset #808080;
+            padding: 15px;
+            min-height: 500px;
+        }
+
+        .character-panel {
+            display: none;
+        }
+
+        .character-panel.active {
+            display: block;
+        }
+
+        .panel-header {
+            background-color: #316ac5;
+            color: #fff;
+            padding: 8px 12px;
+            font-weight: bold;
+            font-size: 13px;
+            border: 2px outset #ddd;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .avatar-box {
+            width: 40px;
+            height: 40px;
+            background-color: #ccc;
+            border: 2px outset #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-right: 10px;
+        }
+
+        .character-info {
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .char-name {
+            font-size: 13px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .char-role {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .entry-count {
+            background-color: #ff0000;
+            color: #fff;
+            padding: 2px 8px;
+            font-size: 11px;
+            border: 1px inset #999;
+        }
+
+        .log-item {
+            border: 1px solid #aca899;
+            margin-bottom: 8px;
+            background-color: #fff;
+        }
+
+        .log-header-bar {
+            background-color: #e8eef7;
+            border-bottom: 1px solid #aca899;
+            padding: 6px 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+        }
+
+        .log-title-text {
+            font-weight: bold;
+            color: #00008b;
+        }
+
+        .log-date-text {
+            color: #666;
+        }
+
+        .weather-tag {
+            background-color: #ffffcc;
+            border: 1px solid #cccc99;
+            padding: 1px 5px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+
+        .log-body {
+            padding: 12px;
+            font-size: 12px;
+            line-height: 1.8;
+            color: #333;
+            background-color: #fff;
+        }
+
+        .log-body p {
+            margin-bottom: 8px;
+            text-indent: 2em;
+        }
+
+        .diary-style {
+            background-color: #fffff0;
+            border-left: 3px solid #ccc;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        .diary-style::before {
+            content: "";
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background-color: #ccc;
+        }
+
+        .forum-post-style {
+            background-color: #f5f5f5;
+            border: 1px solid #ccc;
+            margin: 8px 0;
+        }
+
+        .post-info-bar {
+            background-color: #e8eef7;
+            padding: 5px 10px;
+            font-size: 11px;
+            color: #666;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .post-title-bar {
+            padding: 8px 10px;
+            font-weight: bold;
+            font-size: 12px;
+            background-color: #fff;
+            border-bottom: 1px solid #eee;
+        }
+
+        .post-content-body {
+            padding: 10px;
+            font-size: 12px;
+            line-height: 1.8;
+            color: #444;
+        }
+
+        .official-log-style {
+            background-color: #f9f9f9;
+            border-left: 4px solid #666;
+            padding: 12px;
+        }
+
+        .handwritten-style {
+            font-family: "楷体", KaiTi, serif;
+            line-height: 2;
+            background-color: #fffff8;
+            border: 1px solid #d4c5a9;
+            padding: 15px;
+        }
+
+        .redacted-password {
+            background-color: #000;
+            color: transparent;
+            display: inline-block;
+            padding: 0 6px;
+            font-weight: bold;
+            position: relative;
+            cursor: default;
+            user-select: none;
+            height: 1em;
+            vertical-align: middle;
+        }
+
+        .statusbar {
+            background-color: #ece9d8;
+            border-top: 1px solid #fff;
+            padding: 4px 8px;
+            font-size: 11px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .final-entry {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            border: 2px solid #e74c3c;
+        }
+
+        .final-entry .log-header-bar {
+            background-color: #34495e;
+            color: #e74c3c;
+            border-bottom-color: #555;
+        }
+
+        .final-entry .log-body {
+            color: #ecf0f1;
+        }
+
+        .password-area {
+            background-color: #fffacd;
+            border: 1px dashed #999;
+            padding: 10px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .pwd-input {
+            border: 2px inset #808080;
+            padding: 3px 6px;
+            font-family: Tahoma, sans-serif;
+            font-size: 12px;
+            width: 120px;
+            margin-right: 5px;
+        }
+
+        .pwd-btn {
+            padding: 3px 15px;
+            background-color: #e1e1e1;
+            border: 2px outset #fff;
+            cursor: pointer;
+            font-family: Tahoma, sans-serif;
+            font-size: 11px;
+        }
+
+        .pwd-btn:hover {
+            background-color: #316ac5;
+            color: #fff;
+        }
+
+        /* ── CRT 老式电脑特效 ── */
+        html {
+            filter: saturate(0.5) contrast(0.9) blur(0.3px);
+        }
+        #crt-noise {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9998;
+            opacity: 0.22;
+            mix-blend-mode: screen;
+            image-rendering: pixelated;
+        }
+        #crt-flash {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9997;
+            background: transparent;
+            transition: background 0.05s;
+        }
+
+        /* ── 老式电脑显示器外框 ── */
+        #monitor-frame {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 10000;
+            box-sizing: border-box;
+            border: 46px solid #262626;
+            border-radius: 26px;
+            background: transparent;
+            box-shadow:
+                inset 0 0 0 1px rgba(255,255,255,0.03),
+                inset 0 0 0 3px #151515,
+                inset 0 0 0 5px #343434,
+                inset 0 0 0 6px #111,
+                0 0 0 4px #1c1c1c,
+                0 0 0 6px #363636,
+                0 0 0 8px #131313,
+                0 0 60px rgba(0,0,0,0.7);
+        }
+        #monitor-frame::before {
+            content: '星榆';
+            position: fixed;
+            bottom: 11px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #3d3d3d;
+            font-size: 11px;
+            font-family: "宋体", SimSun, serif;
+            letter-spacing: 8px;
+            z-index: 10001;
+            pointer-events: none;
+        }
+        #monitor-frame::after {
+            content: '';
+            position: fixed;
+            bottom: 14px;
+            right: 84px;
+            width: 6px; height: 6px;
+            background: #3f3;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #3f3, 0 0 16px #3f3;
+            z-index: 10001;
+        }
+        #power-btn {
+            position: fixed;
+            bottom: 7px;
+            right: 18px;
+            z-index: 10001;
+            pointer-events: auto;
+            cursor: pointer;
+            background: linear-gradient(180deg, #3d3d3d, #1e1e1e);
+            color: #777;
+            border: 1px solid #151515;
+            border-top-color: #444;
+            border-left-color: #3a3a3a;
+            padding: 4px 16px;
+            font-family: "宋体", SimSun, serif;
+            font-size: 11px;
+            letter-spacing: 3px;
+            border-radius: 3px;
+            user-select: none;
+            text-align: center;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.04);
+        }
+        #power-btn:hover {
+            color: #bbb;
+            background: linear-gradient(180deg, #4a4a4a, #282828);
+        }
+        #power-btn:active {
+            background: linear-gradient(180deg, #1a1a1a, #2a2a2a);
+            border-top-color: #222;
+            border-left-color: #222;
+            color: #555;
+            box-shadow: none;
+            transform: translateY(1px);
+        }
+        .chenyu-pw-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.55);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .chenyu-pw-box {
+            background: #ece9d8;
+            border: 3px outset #fff;
+            border-radius: 6px;
+            padding: 24px 32px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            max-width: 340px;
+        }
+        .chenyu-pw-box p {
+            color: #cc0000;
+            font-style: italic;
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+        .chenyu-pw-box button {
+            padding: 5px 18px;
+            font-size: 12px;
+            cursor: pointer;
+            border: 2px outset #ddd;
+            background: #f0f0f0;
+        }
+        .chenyu-pw-box button:active {
+            border-style: inset;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="crt-noise"></canvas>
+<div id="crt-flash"></div>
+<div id="monitor-frame"></div>
+<div id="power-btn" onclick="go('map.html')">关闭</div>
+
+<div class="xp-window">
+    <div class="window-title">
+        <div class="window-icon"></div>
+        <span class="mode-label">星榆中学档案室 - 任务日志系统</span>
+    </div>
+    <div class="window-buttons">
+        <div class="window-btn">_</div>
+        <div class="window-btn">□</div>
+        <div class="window-btn" onclick="closeLogsAndReturn()" style="cursor:pointer;">×</div>
+    </div>
+</div>
+
+<div class="main-content">
+
+<div class="toolbar">
+    <button class="toolbar-btn active" onclick="showPanel('linxiao')">📔 林晓·周记</button>
+    <button class="toolbar-btn" onclick="showPanel('chenyu')">💬 ▓█▒·贴吧</button>
+    <button class="toolbar-btn" onclick="showPanel('zhang')">📋 张主任·日志</button>
+    <button class="toolbar-btn" onclick="showPanel('wangbo')">✏️ 王伯·笔记</button>
+</div>
+
+<div class="content-area">
+
+<!-- 林晓周记 -->
+<div id="linxiao" class="character-panel active">
+    <div class="panel-header">
+        <div>
+            <span class="avatar-box">👧</span>
+            <span class="character-info">
+                <div class="char-name">林晓</div>
+                <div class="char-role">高三（3）班学生 | ID：晓星晚</div>
+            </span>
+        </div>
+        <span class="entry-count">共 9 篇</span>
+    </div>
+
+    <div class="log-item diary-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">周记 1</span>
+            <span class="log-date-text">2008.09.02<span class="weather-tag">☀ 晴</span></span>
+        </div>
+        <div class="log-body normal-content">
+            <p>这周开学，学校通知很快就要关停，大家都人心惶惶。政教处张主任每天反复强调不要去三楼，说墙体开裂危险。</p>
+            <p>晚自习放学我走楼梯，三楼隐约有人读书，声音很小，我没敢抬头看，快步跑下了楼。</p>
+            <p>同桌今天请假没来，老师只说家里有事。</p>
+        </div>
+    </div>
+
+    <div class="log-item diary-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">周记 2</span>
+            <span class="log-date-text">2008.09.05<span class="weather-tag">☁ 阴</span></span>
+        </div>
+        <div class="log-body normal-content">
+            <p>又少了一个同学，现在班里只剩34个人。</p>
+            <p>我昨天傍晚在走廊看见一个穿蓝白校服的女生站在拐角，我按校规和她打招呼，她没有脸，一片空白。我吓得跑回教室，告诉老师，张主任说我压力太大看错了。</p>
+        </div>
+    </div>
+
+    <div class="log-item diary-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">周记 3</span>
+            <span class="log-date-text">2008.09.09<span class="weather-tag">🌧 小雨</span></span>
+        </div>
+        <div class="log-body normal-content">
+            <p>今天医务室开门，我头晕想去拿药，看见柜子里一排红色瓶子。护士看见我盯着红瓶，直接把柜子锁死，说高三学生不能碰。</p>
+            <p>晚上<span class="redacted-password">20:30</span>，三楼朗读声又响起来，比上次更清晰，像全班一起背书。</p>
+        </div>
+    </div>
+
+    <div class="log-item diary-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">周记 4</span>
+            <span class="log-date-text">2008.09.12<span class="weather-tag">⛅ 多云</span></span>
+        </div>
+        <div class="log-body normal-content">
+            <p>我偷偷翻了贴吧，陈宇发了很多奇怪的禁忌，和学校贴的校规完全相反。他说无脸校服人要主动说话才能自保，可主任明明让我们假装看不见。</p>
+            <p>我现在分不清哪一边是真的。今天清点人数，已经失踪<span class="redacted-password">8人</span>了。</p>
+        </div>
+    </div>
+
+    <div class="log-item diary-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">周记 5</span>
+            <span class="log-date-text">2008.09.16<span class="weather-tag">🌫 雾</span></span>
+        </div>
+        <div class="log-body normal-content">
+            <p>晚自习留下刷题，到21点准备离开，三楼脚步声跟着我下楼。我回头看，空无一人。</p>
+            <p>墙上公示的校规第三条写医务室17点开放，我下午五点去医务室，大门紧闭，根本没人。</p>
+        </div>
+    </div>
+
+    <div class="log-item diary-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">周记 6</span>
+            <span class="log-date-text">2008.09.18<span class="weather-tag">🌫 雾</span></span>
+        </div>
+        <div class="log-body normal-content">
+            <p>有一个同学好像疯了。今天数学课上老师说5大于1，他抱着头突然开始发抖，说什么三要在一前面，一在五前面，五在二前面，二在四前面。这个学校越来越不对劲了。</p>
+        </div>
+    </div>
+
+    <div class="log-item diary-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">周记 7</span>
+            <span class="log-date-text">2008.09.20<span class="weather-tag">☁ 阴天</span></span>
+        </div>
+        <div class="log-body normal-content">
+            <p>周五大扫除，我们班不用打扫三楼卫生间，我偷偷过去看镜子，镜子里多了很多陌生学生，密密麻麻站在身后。</p>
+            <p>镜子破碎前我看见了三楼实验室的门，里面亮着微光。主任警告所有人不许靠近卫生间镜子。</p>
+        </div>
+    </div>
+
+    <div class="log-item diary-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">周记 8</span>
+            <span class="log-date-text">2008.09.23<span class="weather-tag">🌧 大雨</span></span>
+        </div>
+        <div class="log-body normal-content">
+            <p>我翻到老师内部手册，原来他们早就知道三楼有问题。红瓶药剂能压制幻觉，校方故意藏起来。</p>
+            <p>失踪的同学不是离校，是被三楼的东西困住了。储物柜里的实验记录是根源，必须毁掉。</p>
+        </div>
+    </div>
+
+    <div class="log-item diary-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">周记 9</span>
+            <span class="log-date-text">2008.09.27<span class="weather-tag">⛈ 暴雨</span></span>
+        </div>
+        <div class="log-body normal-content">
+            <p>明天学校就要彻底关停，所有人都会走。</p>
+            <p>要么装作什么都没看见离开，要么去三楼毁掉仪器。</p>
+            <p style="font-weight: bold;">我不想变成没有脸的人，我要把真相留下来，希望有人能发现这本周记。</p>
+            <p style="text-align: right; margin-top: 15px; font-style: italic;">—— 林晓</p>
+        </div>
+    </div>
+</div>
+
+<!-- 陈宇贴吧 -->
+<div id="chenyu" class="character-panel">
+    <div class="panel-header">
+        <div>
+            <span class="avatar-box">👦</span>
+            <span class="character-info">
+                <div class="char-name">▓█▒</div>
+                <div class="char-role">高三（3）班学生 | 贴吧ID：榆宇0817</div>
+            </span>
+        </div>
+        <span class="entry-count">共 7 帖</span>
+    </div>
+
+    <div class="log-item forum-post-style">
+        <div class="post-info-bar">📅 2008-09-03 16:42 | 💬 23回复 | 👁 156次浏览</div>
+        <div class="post-title-bar">帖子1：吐槽一下学校离谱规定</div>
+        <div class="post-content-body normal-content">
+            我学号<span class="redacted-password">0817</span>，高三3班，最近学校规矩越来越莫名其妙。
+            <br><br>
+            不让上三楼、周五不能打扫三楼厕所，感觉校长在藏什么东西，有没有人一起去三楼看看？
+        </div>
+    </div>
+
+    <div class="log-item forum-post-style">
+        <div class="post-info-bar">📅 2008-09-06 18:23 | 💬 89回复 | 👁 432次浏览 | 🔐加密帖</div>
+        <div class="post-title-bar">帖子2：我撞见无脸校服学生了</div>
+        <div class="post-content-body normal-content">
+            昨天放学走廊撞见，整张脸空白一片，我直接跑了。今天问张主任，他说我眼花。
+            <br><br>
+            贴吧我整理了一套民间禁忌，帖子加密，密码是我学号，想看的自己输。
+            <div class="password-area">
+                <strong>🔒 此帖子已加密</strong><br>
+                输入密码：<input type="password" class="pwd-input" id="post2-pwd" placeholder="输入学号">
+                <button class="pwd-btn" onclick="unlockPost2()">解锁</button>
+            </div>
+            <div id="post2-hidden" style="display: none; margin-top: 10px; padding: 10px; background-color: #ffffcc; border: 1px solid #999;" class="normal-content">
+                <strong>📌 完整禁忌规则：</strong><br><br>
+                1. 三楼朗读声是失踪同班同学<br>
+                2. 无脸校服人必须主动搭话<br>
+                3. 红色药剂能压制幻觉<br>
+                4. 储物柜存放违规实验记录<br>
+                5. 周五镜子能看见真相<br><br>
+                这和王伯告诉我的有一些不一样····可是他没道理骗我·····这些不一样的条目是在暗示有关于三楼的什么吗？何况三楼密码锁好像是四位数·····
+            </div>
+        </div>
+    </div>
+
+    <div class="log-item forum-post-style">
+        <div class="post-info-bar">📅 2008-09-10 14:15 | 💬 45回复 | 👁 278次浏览</div>
+        <div class="post-title-bar">帖子3：医务室红瓶药剂疑点</div>
+        <div class="post-content-body normal-content">
+            17点医务室开门，但红药水全部锁保险柜，老师不让我们碰。
+            <br><br>
+            我偷偷看见校工王伯拿过红瓶，喝完之后他说不会再看见奇怪人影。
+        </div>
+    </div>
+
+    <div class="log-item forum-post-style">
+        <div class="post-info-bar">📅 2008-09-14 20:08 | 💬 112回复 | 👁 567次浏览</div>
+        <div class="post-title-bar">帖子4：官方校规全是陷阱</div>
+        <div class="post-content-body normal-content">
+            公示校规、老师手册、我们流传的禁忌三条完全冲突。
+            <br><br>
+            官方让我们无视无脸学生，实际无视会被跟着；官方不让碰储物柜，储物柜里才是根源。
+        </div>
+    </div>
+
+    <div class="log-item forum-post-style">
+        <div class="post-info-bar">📅 2008-09-18 19:05 | 💬 78回复 | 👁 445次浏览</div>
+        <div class="post-title-bar">帖子5：周五卫生间镜子别躲开</div>
+        <div class="post-content-body normal-content">
+            今天周五，我去三楼卫生间照镜子，看见了去年实验课的画面，一堆学生围着仪器，之后所有人慢慢失去五官。
+            <br><br>
+            校方故意不让我们打扫三楼卫生间，就是不想我们看见镜子。
+        </div>
+    </div>
+
+    <div class="log-item forum-post-style" id="post6-locked" style="opacity: 0.7; filter: blur(0.5px);">
+        <div class="post-info-bar">📅 2008-09-22 20:11 | 💬 ???回复 | 👁 ???次浏览</div>
+        <div class="post-title-bar">帖子6：▄▀█▒▓░▌▐▀▄</div>
+        <div class="post-content-body normal-content">
+            <p style="font-family: monospace; letter-spacing: 2px; color: #888;">
+                ▓▒░█▓▒░█▓▒░█▓▒░ 三 ▓▒░█▓▒░█▓▒░<br>
+                █▀▄▀█▀▄▀█▀▄▀█▀▄▀ 楼 █▀▄▀█▀▄▀█<br>
+                ░▓▒█░▓▒█░▓▒█░▓▒ 大 ░▓▒█░▓▒█<br>
+                ▄▀█▓▒░▌▐█▓▒░▌▐ 门 ▄▀█▓▒░▌▐<br>
+                █▓▒░█▓▒░█▓▒░█▓ █▓▒░█▓▒░█▓▒<br><br>
+                ▒░█▓▒░█▓▒░█▓▒░█ █▓▒░█▓▒░        █▓▒░█▓▒░<br>
+                ▀▄▀█▓▒░▌▐█▓▒░▌ █▓▒░█▓▒░█▓▒░█▓▒░█▓▒<br><br>
+                █▓▒ 密 █▓▒░█▓▒░ 码 █▓▒░█▓▒<br>
+                ▓▒░█▓▒░█▓▒░█▓▒░█▓▒░█▓▒░█▓▒░█▓▒<br>
+            </p>
+        </div>
+    </div>
+
+    <div class="log-item forum-post-style" style="border-left: 4px solid #cc0000; background-color: #fff0f0;">
+        <div class="post-info-bar">📅 2008-09-25 22:37 | 💬 0回复 | 👁 12次浏览 | ⚠️已删除</div>
+        <div class="post-title-bar">帖子7：张主任把我开除了</div>
+        <div class="post-content-body normal-content">
+            <p>今天张主任突然把我叫到政教处，说我恶意传播不实信息，扰乱校园秩序，当场宣布开除决定。</p>
+            <p>他让我立刻收拾东西离校，所有论坛帖子都会被删除。他不让我跟任何人告别。</p>
+            <p style="font-weight: bold;">我知道他根本不是因为我"造谣"才开除我——他是怕我把三楼密码传出去，怕有人真的打开那扇门找到真相。</p>
+            <p>张主任，你可以把我从学校开除，但你删不掉真相。</p>
+        </div>
+    </div>
+
+</div>
+
+<!-- 张主任日志 -->
+<div id="zhang" class="character-panel">
+    <div class="panel-header">
+        <div>
+            <span class="avatar-box">👨‍💼</span>
+            <span class="character-info">
+                <div class="char-name">张建军</div>
+                <div class="char-role">政教处主任 | 教职工编号：ZYJ-001</div>
+            </span>
+        </div>
+        <span class="entry-count">共 7 篇日志</span>
+    </div>
+
+    <div class="log-item official-log-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">工作日志 1</span>
+            <span class="log-date-text">2008.09.01</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>下发新公示校规，重点强调禁止三楼滞留。校长通知，<span class="redacted-password">实验室污染事件绝对不能对外泄露</span>，所有学生幻觉统一归类为升学压力。</p>
+            <p>高三三个班级，每班42人，档案全部存入档案柜，密码<span class="redacted-password">126</span>。</p>
+        </div>
+    </div>
+
+    <div class="log-item official-log-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">工作日志 2</span>
+            <span class="log-date-text">2008.09.04</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>多名学生反映看见无脸学生、三楼朗读声。按照内部条例统一疏导，严禁学生私下讨论怪事，校内贴吧安排管控，删除相关帖子。</p>
+            <p>医务室红瓶药剂严格上锁，密码<span class="redacted-password">1705</span>，禁止学生接触。</p>
+        </div>
+    </div>
+
+    <div class="log-item official-log-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">工作日志 3</span>
+            <span class="log-date-text">2008.09.08</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>失踪学生累计<span class="redacted-password">8人</span>，监控全部存档锁死，监控密码0008。</p>
+            <p>监控录像不许任何学生查看，教师也只能在20点前短暂调取。一旦<span class="redacted-password">20:30</span>听见三楼朗读声，立刻关闭监控界面。</p>
+        </div>
+    </div>
+
+    <div class="log-item official-log-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">工作日志 4</span>
+            <span class="log-date-text">2008.09.13</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>发现学生私下整理校园禁忌，陈宇在贴吧发布加密帖子，传播与官方相悖的规则。找陈宇谈话警告，无效，只能暂时封锁帖子，保留记录防止后续闹事。</p>
+        </div>
+    </div>
+
+    <div class="log-item official-log-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">工作日志 5</span>
+            <span class="log-date-text">2008.09.19</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>周五巡查教学楼，三楼卫生间镜子出现大量异常影像，安排学生无需清扫三楼卫生间，减少接触镜子的机会。</p>
+            <p>内部条例第<span class="redacted-password">5</span>条明确禁止周五夜间独自巡楼。</p>
+        </div>
+    </div>
+
+    <div class="log-item official-log-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">工作日志 6</span>
+            <span class="log-date-text">2008.09.24</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>校长下达通知，一周内永久关停学校，封锁三楼实验室，销毁实验相关纸质记录。</p>
+            <p>对外只说校舍安全问题，所有教职工统一口径，不许提及实验、幻觉、失踪学生。</p>
+        </div>
+    </div>
+
+    <div class="log-item official-log-style">
+        <div class="log-header-bar">
+            <span class="log-title-text">工作日志 7</span>
+            <span class="log-date-text">2008.09.28</span>
+        </div>
+        <div class="log-body normal-content">
+            <p><span class="redacted-password">……掩盖一切……</span>只要没人主动毁掉仪器，污染会一直留存……新的学生入校，旧事会重新上演……</p>
+            <p style="font-weight: bold; margin-top: 12px;">我选择服从校方安排，放弃揭露真相。</p>
+            <p style="color: #8a0000; margin-top: 10px; font-weight: bold;">逃吧孩子·····大门密码是第一个学生失踪的日期·····</p>
+            <p style="text-align: right; margin-top: 15px; font-style: italic; color: #95a5a6;">—— 张建军 绝密存档</p>
+        </div>
+    </div>
+</div>
+
+<!-- 王伯笔记 -->
+<div id="wangbo" class="character-panel">
+    <div class="panel-header">
+        <div>
+            <span class="avatar-box">👴</span>
+            <span class="character-info">
+                <div class="char-name">王伯</div>
+                <div class="char-role">留守校工 | 在职年限：23年</div>
+            </span>
+        </div>
+        <span class="entry-count">共 5 页笔记</span>
+    </div>
+
+    <div class="log-item handwritten-style">
+        <div class="log-header-bar" style="border-bottom: 1px dashed #d4a574;">
+            <span class="log-title-text" style="font-family: '楷体';">手写笔记 第1页</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>2008年夏天，三楼实验室机器出问题，学生开始看见怪人。</p>
+            <p>红色药水能压下幻觉，医务室锁起来不给学生用。</p>
+            <p style="font-style: italic; color: #7f8c8d; margin-top: 10px; text-indent: 0;">—— 我知道真相，但我只是个看门的</p>
+        </div>
+    </div>
+
+    <div class="log-item handwritten-style">
+        <div class="log-header-bar" style="border-bottom: 1px dashed #d4a574;">
+            <span class="log-title-text" style="font-family: '楷体';">手写笔记 第2页</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>每周五晚上镜子最"活跃"，校方不让学生靠近三楼卫生间，怕他们看见当年实验的真相。</p>
+            <p>那些孩子还不知道，他们看到的不是幻觉，是真实存在的。</p>
+        </div>
+    </div>
+
+    <div class="log-item handwritten-style">
+        <div class="log-header-bar" style="border-bottom: 1px dashed #d4a574;">
+            <span class="log-title-text" style="font-family: '楷体';">手写笔记 第3页</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>三楼大门密码藏在三套规则数字里：</p>
+            <p style="text-align: center; font-size: 16px; font-weight: bold; margin: 12px 0; text-indent: 0;">
+                <span class="redacted-password">3</span> 、<span class="redacted-password">5</span> 、<span class="redacted-password">4</span> ，加上<span class="redacted-password">学校关停08年</span>
+            </p>
+            <p style="text-align: center; font-size: 18px; font-weight: bold; background-color: #ffffcc; padding: 10px; border: 2px outset #ddd; margin: 10px 0; text-indent: 0;">
+                密码：<span class="redacted-password" style="font-size: 20px;">3548</span>
+            </p>
+            <p>锁着最核心的仪器。</p>
+        </div>
+    </div>
+
+    <div class="log-item handwritten-style">
+        <div class="log-header-bar" style="border-bottom: 1px dashed #d4a574;">
+            <span class="log-title-text" style="font-family: '楷体';">手写笔记 第4页</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>主任他们全都知道真相，但不敢毁机器，怕担责任，选择把学校封起来糊弄过去。</p>
+            <p>可怜那些孩子，一个接一个消失，没人敢说话。</p>
+            <p>封三楼那天，实验室传来朗读声。我记下的铁门密码就在这一页——可惜原始手写稿扫描上传时<strong>数据丢失</strong>，关键数字都成了■■■。</p>
+            <p>我的办公室已经被锁了····密码可能在二楼的某个地方·····我的时间不多了····要是有人····</p>
+        </div>
+    </div>
+
+    <div class="log-item handwritten-style">
+        <div class="log-header-bar" style="border-bottom: 1px dashed #d4a574;">
+            <span class="log-title-text" style="font-family: '楷体';">手写笔记 第5页</span>
+        </div>
+        <div class="log-body normal-content">
+            <p>红瓶药剂治标不治本，只有打碎实验室核心装置，这里的怪事才能彻底停下。</p>
+            <p style="font-size: 14px; font-weight: bold; margin: 12px 0; text-indent: 0;">
+                我守在这里，等一个愿意拆穿谎言的人。
+            </p>
+            <p style="font-size: 14px; font-weight: bold; margin: 12px 0; text-indent: 0; color: #a00000;">
+                我只是一个普通的人......这不是我该做的
+            </p>
+            <p style="text-align: right; font-style: italic; color: #7f8c8d; margin-top: 15px; text-indent: 0;">—— 王伯 留于2008年秋</p>
+        </div>
+    </div>
+</div>
+
+</div>
+
+<div class="statusbar">
+    <span>就绪</span>
+    <span>星榆中学档案管理系统 v1.0 | 最后更新：2008-09-28</span>
+</div>
+
+</div>
+
+<script>
+function showPanel(panelId) {
+    document.querySelectorAll('.character-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+    document.querySelectorAll('.toolbar-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    document.getElementById(panelId).classList.add('active');
+    event.target.classList.add('active');
+}
+
+function unlockPost2() {
+    const password = document.getElementById('post2-pwd').value;
+    if (password === '0817') {
+        document.getElementById('post2-hidden').style.display = 'block';
+        document.getElementById('post2-pwd').disabled = true;
+        event.target.disabled = true;
+        event.target.textContent = '已解锁 ✓';
+        event.target.style.backgroundColor = '#90ee90';
+    } else {
+        showChenyuPwError();
+    }
+}
+
+function showChenyuPwError() {
+    document.getElementById('chenyu-pw-modal').style.display = 'flex';
+}
+
+function closeChenyuPwError() {
+    document.getElementById('chenyu-pw-modal').style.display = 'none';
+}
+
+// 将所有涂黑文字替换为纯黑色方块
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.redacted-password').forEach(function(el) {
+        var textLen = el.textContent.length;
+        el.textContent = '';
+        var w = Math.max(textLen * 10, 14);
+        el.style.width = w + 'px';
+        el.style.minWidth = w + 'px';
+    });
+});
+
+function closeLogsAndReturn() {
+    var activeTab = document.querySelector('.toolbar-btn.active');
+    var currentPanel = activeTab ? activeTab.getAttribute('onclick').match(/'([^']+)'/)[1] : 'linxiao';
+    
+    var post2Unlocked = !document.getElementById('post2-pwd').disabled;
+    
+    localStorage.setItem('xyzh_logs_state', JSON.stringify({
+        currentPanel: currentPanel,
+        post2Unlocked: post2Unlocked,
+        timestamp: Date.now()
+    }));
+    
+    go('index.html');
+}
+
+function restoreLogsState() {
+    try {
+        var savedState = JSON.parse(localStorage.getItem('xyzh_logs_state'));
+        
+        if (savedState && savedState.currentPanel) {
+            setTimeout(function() {
+                showPanel(savedState.currentPanel);
+            }, 100);
+        }
+    } catch(e) {
+        console.log('无法恢复日志页面状态');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 不再自动跳回上次浏览的面板，始终以“林晓·周记”作为第一个界面
+});
+</script>
+
+<script src="bgm.js"></script>
+
+<!-- ── CRT 雪花屏噪点 + 间歇闪屏 ── -->
+<script>
+(function(){
+    var cv=document.getElementById('crt-noise');
+    var cx=cv.getContext('2d');
+    var w,h,sw,sh,imgData,data;
+
+    function resize(){
+        w=cv.width=window.innerWidth;
+        h=cv.height=window.innerHeight;
+        sw=Math.ceil(w/4); sh=Math.ceil(h/4);
+        imgData=cx.createImageData(sw,sh);
+        data=imgData.data;
+    }
+    resize(); window.addEventListener('resize',resize);
+
+    function noise(){
+        for(var i=0;i<data.length;i+=4){
+            var v=Math.random()<0.13?200+Math.random()*55:0;
+            data[i]=v; data[i+1]=v; data[i+2]=v; data[i+3]=255;
+        }
+        cx.putImageData(imgData,0,0);
+        cx.drawImage(cv,0,0,sw,sh,0,0,w,h);
+        cx.fillStyle='rgba(0,0,0,0.16)';
+        for(var y=0;y<sh;y+=4) cx.fillRect(0,y*(h/sh),w,2*(h/sh));
+        if(Math.random()<0.04){
+            cx.fillStyle='rgba(255,255,255,'+(0.04+Math.random()*0.08)+')';
+            cx.fillRect(0,Math.floor(Math.random()*h),w,1+Math.random()*3);
+        }
+        requestAnimationFrame(noise);
+    }
+    noise();
+
+    var flash=document.getElementById('crt-flash');
+    function scheduleFlash(){
+        var delay=3000+Math.random()*15000;
+        setTimeout(function(){
+            flash.style.background='rgba(255,255,255,'+(0.06+Math.random()*0.15)+')';
+            setTimeout(function(){
+                flash.style.background='transparent';
+                scheduleFlash();
+            },40+Math.random()*60);
+        },delay);
+    }
+    scheduleFlash();
+})();
+</script>
+
+<div class="chenyu-pw-modal" id="chenyu-pw-modal" onclick="if(event.target === this) closeChenyuPwError()">
+    <div class="chenyu-pw-box">
+        <p>这不是你应该管的事情</p>
+        <button onclick="closeChenyuPwError()">确定</button>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>成就样式预览 · 好结局(金) / 彩蛋结局(炫彩) / 逃避·死亡(红)</title>
+    <style>
+body{margin:0;background:#000;font-family:"宋体",SimSun,serif;}
+/* ── 以下 CSS 与 save.js 中一致 ── */
+#xyzh-ach-box{
+  width:470px;max-width:92vw;margin:40px auto;padding:26px 28px;
+  background:#0c0c0c;border:1px solid #4a2a2a;box-shadow:0 0 40px rgba(80,0,0,0.4);
+}
+#xyzh-ach-title{color:#a85a5a;font-size:22px;letter-spacing:8px;text-align:center;margin-bottom:8px;text-shadow:0 0 10px rgba(160,40,40,0.4);}
+#xyzh-ach-count{color:#b88a6a;font-size:14px;letter-spacing:4px;text-align:center;margin-bottom:20px;font-family:"宋体",SimSun,serif;}
+#xyzh-ach-count.full{color:#e6c45a;text-shadow:0 0 8px rgba(210,165,40,0.5);}
+.xyzh-ach{position:relative;border:1px solid #3a2a2a;padding:14px 16px;margin-bottom:14px;color:#c0a0a0;background:rgba(40,10,10,0.12);}
+.xyzh-ach.got{border-color:#6a3030;box-shadow:0 0 14px rgba(120,0,0,0.28) inset;background:rgba(60,12,12,0.22);}
+.xyzh-ach .e{font-size:18px;letter-spacing:4px;color:#9a5a5a;}
+.xyzh-ach.got .e{color:#e07070;text-shadow:0 0 8px rgba(160,0,0,0.5);}
+.xyzh-ach .d{font-size:13px;color:#9a8a8a;letter-spacing:1px;margin-top:6px;line-height:1.6;}
+.xyzh-ach .n{font-size:12px;color:#7a6a6a;letter-spacing:1px;margin-top:8px;}
+.xyzh-ach .badge{position:absolute;top:14px;right:16px;font-size:13px;letter-spacing:3px;color:#d06060;}
+/* ── 好结局：金色 ── */
+.xyzh-ach.gold{border-color:#6a5a1a;box-shadow:0 0 14px rgba(190,150,40,0.30) inset;background:rgba(52,42,12,0.24);}
+.xyzh-ach.gold .e{color:#e6c45a;text-shadow:0 0 8px rgba(210,165,40,0.55);}
+.xyzh-ach.gold .d{color:#b8a878;}
+.xyzh-ach.gold .n{color:#8a7a4a;}
+.xyzh-ach.gold .badge{color:#d8b24a;}
+/* ── 彩蛋结局：炫彩（粉紫蓝渐变，呼应 egg_ending.html）── */
+.xyzh-ach.egg{border-color:#8a4a8a;box-shadow:0 0 14px rgba(180,80,180,0.30) inset, 0 0 18px rgba(95,184,212,0.18) inset;background:linear-gradient(135deg, rgba(80,30,90,0.30), rgba(30,60,90,0.30));}
+.xyzh-ach.egg .e{color:#f0c0e8;text-shadow:0 0 8px rgba(255,150,220,0.55), 0 0 14px rgba(95,184,212,0.45);}
+.xyzh-ach.egg .d{color:#c0b8d8;}
+.xyzh-ach.egg .n{color:#8a78a8;}
+.xyzh-ach.egg .badge{color:#e8a0d8;}
+.hint{color:#777;text-align:center;font-size:13px;letter-spacing:2px;margin-top:10px;}
+</style>
+</head>
+<body>
+<div id="xyzh-ach-box">
+  <div id="xyzh-ach-title">成 就 · 已 通 往 结 局</div>
+  <div id="xyzh-ach-count" class="full">4 / 4</div>
+
+  <!-- 红色结局（对照） -->
+  <div class="xyzh-ach got">
+    <div class="e">逃避结局</div>
+    <div class="d">你选择了逃避。真相被掩盖，三楼的回响从未停止。</div>
+    <div class="n">来自存档1 · 7/9 09:54</div>
+    <div class="badge">已 达 成</div>
+  </div>
+
+  <!-- 红色结局（对照） -->
+  <div class="xyzh-ach got">
+    <div class="e">死亡结局</div>
+    <div class="d">你被黑影吞噬。星榆中学的名单上又添了一个名字。</div>
+    <div class="n">来自存档2 · 7/9 09:55</div>
+    <div class="badge">已 达 成</div>
+  </div>
+
+  <!-- 好结局：金色（新增） -->
+  <div class="xyzh-ach got gold">
+    <div class="e">好结局</div>
+    <div class="d">你拉下总闸、按下红色按钮，也停止了这个不为人知的阴谋。星榆中学的灯，第一次为你而亮。</div>
+    <div class="n">来自存档1 · 7/9 09:56</div>
+    <div class="badge">已 达 成</div>
+  </div>
+
+  <!-- 彩蛋结局：炫彩（粉紫蓝） -->
+  <div class="xyzh-ach got egg">
+    <div class="e">彩蛋结局</div>
+    <div class="d">你带陈宇找到了那扇门。走廊尽头的火光熄灭，再没有人能打开它。</div>
+    <div class="n">来自存档1 · 7/10 10:57</div>
+    <div class="badge">已 达 成</div>
+  </div>
+
+  <div class="hint">▲ 好结局为金色 · 彩蛋结局为炫彩（粉紫蓝）· 其余结局为红色</div>
+</div>
+</body>
+</html>

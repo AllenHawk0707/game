@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>星榆中学档案室 - 背景音乐</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "宋体", SimSun, serif;
+            background: #1a0a0a;
+            color: #c0c0c0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .player-container {
+            background: #0a0505;
+            border: 2px solid #4a0000;
+            padding: 40px;
+            max-width: 700px;
+            width: 100%;
+            box-shadow: 0 0 30px rgba(139, 0, 0, 0.5);
+        }
+
+        .title {
+            text-align: center;
+            color: #8b0000;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            letter-spacing: 8px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 40px;
+            letter-spacing: 4px;
+        }
+
+        .cover-art {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 30px;
+            background: linear-gradient(135deg, #1a0000 0%, #3a0000 50%, #1a0000 100%);
+            border: 2px solid #4a0000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 80px;
+            box-shadow: 0 0 20px rgba(139, 0, 0, 0.8);
+        }
+
+        .track-info {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .track-title {
+            font-size: 20px;
+            color: #8b0000;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+
+        .track-artist {
+            font-size: 14px;
+            color: #888;
+            letter-spacing: 1px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .ctrl-btn {
+            background: #2a0000;
+            border: 1px solid #4a0000;
+            color: #c0c0c0;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-family: "宋体", SimSun, serif;
+            font-size: 14px;
+            letter-spacing: 2px;
+            min-width: 100px;
+        }
+
+        .ctrl-btn:hover {
+            background: #4a0000;
+            color: #fff;
+        }
+
+        .ctrl-btn.primary {
+            background: #8b0000;
+            color: #fff;
+            border-color: #c00000;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .volume-control label {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .volume-slider {
+            -webkit-appearance: none;
+            width: 200px;
+            height: 4px;
+            background: #4a0000;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #8b0000;
+            cursor: pointer;
+            border: 1px solid #c00000;
+        }
+
+        .info-panel {
+            background: #1a0000;
+            border: 1px solid #3a0000;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .info-panel h3 {
+            color: #8b0000;
+            font-size: 16px;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+
+        .info-panel ul {
+            list-style: none;
+            font-size: 13px;
+            line-height: 1.8;
+            color: #999;
+        }
+
+        .info-panel ul li::before {
+            content: "▸ ";
+            color: #8b0000;
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            background: #0a0000;
+            border: 1px solid #2a0000;
+            color: #8b0000;
+            font-size: 14px;
+            letter-spacing: 2px;
+        }
+
+        .status.playing {
+            color: #c00000;
+            border-color: #c00000;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .hint {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 12px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div class="player-container">
+    <div class="title">星 榆 中 学</div>
+    <div class="subtitle">档 案 室 · 背 景 音 乐</div>
+
+    <div class="cover-art">🏫</div>
+
+    <div class="track-info">
+        <div class="track-title">《尘封的真相》</div>
+        <div class="track-artist">Ambient Horror · Loop · 2008</div>
+    </div>
+
+    <div class="controls">
+        <button class="ctrl-btn primary" id="playBtn" onclick="toggleMusic()">▶ 播放</button>
+        <button class="ctrl-btn" onclick="stopMusic()">■ 停止</button>
+    </div>
+
+    <div class="volume-control">
+        <label>音量：</label>
+        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="36" oninput="changeVolume(this.value)">
+        <span id="volumeValue" style="color: #8b0000; width: 30px;">36</span>
+    </div>
+
+    <div class="status" id="status">⏸ 未播放 - 点击播放按钮开始</div>
+
+    <div class="info-panel">
+        <h3>👻 恐怖氛围音效系统 v3.0</h3>
+        <ul>
+            <li><strong style="color: #c00;">🔈 压迫基底</strong>：4层低频嗡鸣(55/82.5/110/165Hz) + LFO调制颤音</li>
+            <li><strong style="color: #c00;">🌫️ 环境氛围</strong>：和弦铺底(C/E/G/A) + 粉红风声 + 动态滤波</li>
+            <li><strong style="color: #c00;">💓 心跳脉冲</strong>：4种心跳模式随机切换，模拟紧张心跳</li>
+            <li><strong style="color: #c00;">🔔 钟楼回响</strong>：4种频率钟声(523/659/784/880Hz)，长衰减回声</li>
+            <li><strong style="color: #c00;">👂 窃窃私语</strong>：带通滤波噪声，模拟走廊低语声</li>
+            <li><strong style="color: #c00;">🚶 脚步声</strong>：远近距离变化 + 走廊回声 + 突发靠近</li>
+            <li><strong style="color: #c00;">🎹 钢琴旋律</strong>：4组旋律片段，偶尔浮现诡异音符</li>
+            <li><strong style="color: #c00;">✨ 高频泛音</strong>：弦乐锯齿波，飘渺诡异的高音</li>
+            <li><strong style="color: #c00;">⚡ 故障噪音</strong>：Glitch电子故障声，窄带通滤波</li>
+            <li><strong style="color: #c00;">🔩 金属撞击</strong>：正弦衰减，旧式设备故障声</li>
+            <li><strong style="color: #c00;">👤 诡异人声</strong>：低频LFO调制的恐怖呻吟声（极罕见）</li>
+            <li><strong style="color: #c00;">😱 突发惊吓</strong>：锯齿波高频爆发，突然的惊吓效果</li>
+            <li><strong style="color: #c00;">🚪 门轴吱呀</strong>：正弦调制，老旧门开启的声音</li>
+        </ul>
+    </div>
+
+    <div class="hint">
+        💡 提示：按 M 键可快速切换播放状态
+    </div>
+</div>
+
+<script src="bgm.js"></script>
+
+<script>
+    const playBtn = document.getElementById('playBtn');
+    const status = document.getElementById('status');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const volumeValue = document.getElementById('volumeValue');
+
+    function toggleMusic() {
+        const isPlaying = BGM.toggle();
+        
+        if (isPlaying) {
+            playBtn.innerHTML = '⏸ 暂停';
+            status.innerHTML = '🔊 正在播放 - 《尘封的真相》';
+            status.classList.add('playing');
+        } else {
+            playBtn.innerHTML = '▶ 播放';
+            status.innerHTML = '⏸ 已停止';
+            status.classList.remove('playing');
+        }
+    }
+
+    function stopMusic() {
+        BGM.stop();
+        playBtn.innerHTML = '▶ 播放';
+        status.innerHTML = '⏸ 未播放 - 点击播放按钮开始';
+        status.classList.remove('playing');
+    }
+
+    function changeVolume(value) {
+        BGM.setVolume(value / 100);
+        volumeValue.textContent = value;
+    }
+</script>
+
+</body>
+</html>

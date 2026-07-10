@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>脚步声生成器</title>
+<style>
+body {
+    font-family: "宋体", SimSun, serif;
+    background: #1a1a1a;
+    color: #ccc;
+    padding: 20px;
+    text-align: center;
+}
+button {
+    background: #c00;
+    color: #fff;
+    border: none;
+    padding: 15px 30px;
+    font-size: 16px;
+    cursor: pointer;
+    margin: 10px;
+    border-radius: 5px;
+}
+button:hover {
+    background: #f00;
+}
+.info {
+    margin-top: 20px;
+    font-size: 14px;
+    color: #888;
+}
+</style>
+</head>
+<body>
+
+<h2>👣 脚步声音效 (1分钟循环)</h2>
+
+<button onclick="playFootstep()">▶ 播放脚步声 (60秒)</button>
+<button onclick="downloadFootstep()">⬇ 下载音频 (WAV)</button>
+
+<div class="info">
+<p>点击播放试听，或下载为WAV文件</p>
+<p>时长：60秒 | 格式：单声道 WAV | 节奏：约120步/分钟</p>
+<p>模拟正常行走的脚步声，适合恐怖游戏背景音</p>
+</div>
+
+<script>
+var audioCtx = null;
+
+function getAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+}
+
+function createFootstepSound() {
+    const ctx = getAudioContext();
+    
+    const duration = 60;
+    const sampleRate = ctx.sampleRate;
+    const numSamples = sampleRate * duration;
+    
+    const buffer = ctx.createBuffer(1, numSamples, sampleRate);
+    const data = buffer.getChannelData(0);
+    
+    const stepInterval = 0.5;
+    const totalSteps = Math.floor(duration / stepInterval);
+    
+    for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        
+        let sample = 0;
+        
+        for (let step = 0; step < totalSteps; step++) {
+            const stepTime = step * stepInterval + (Math.random() * 0.02 - 0.01);
+            const localTime = t - stepTime;
+            
+            if (localTime >= 0 && localTime < 0.4) {
+                let stepSample = 0;
+                
+                const intensity = 0.6 + Math.random() * 0.2;
+                const leftRight = step % 2 === 0 ? 1 : 0.85;
+                
+                if (localTime < 0.02) {
+                    const attackT = localTime / 0.02;
+                    stepSample = attackT * Math.random() * 0.2 * leftRight;
+                } else if (localTime < 0.08) {
+                    stepSample = (Math.random() * 0.4 + 0.25) * intensity * leftRight;
+                    stepSample += Math.sin(localTime * 300) * 0.08 * leftRight;
+                    stepSample += Math.sin(localTime * 800) * 0.03 * leftRight;
+                } else if (localTime < 0.18) {
+                    const decayT = (localTime - 0.08) / 0.1;
+                    stepSample = (1 - decayT) * (Math.random() * 0.3 + 0.15) * intensity * leftRight;
+                    stepSample += Math.sin(localTime * 150) * 0.04 * (1 - decayT) * leftRight;
+                } else if (localTime < 0.28) {
+                    stepSample = Math.random() * 0.12 * leftRight;
+                    stepSample += Math.sin(localTime * 100) * 0.03 * leftRight;
+                } else {
+                    const fadeT = (localTime - 0.28) / 0.12;
+                    stepSample = (1 - fadeT) * Math.random() * 0.06 * leftRight;
+                }
+                
+                sample += stepSample;
+            }
+        }
+        
+        data[i] = sample * 0.55;
+    }
+    
+    return buffer;
+}
+
+function playFootstep() {
+    try {
+        const ctx = getAudioContext();
+        const buffer = createFootstepSound();
+        
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        
+        source.connect(ctx.destination);
+        source.start(0);
+        
+        console.log('✅ 脚步声播放成功');
+    } catch(e) {
+        console.error('❌ 播放失败:', e);
+        alert('播放失败: ' + e.message);
+    }
+}
+
+function downloadFootstep() {
+    try {
+        const ctx = getAudioContext();
+        const buffer = createFootstepSound();
+        
+        const numSamples = buffer.length;
+        const sampleRate = buffer.sampleRate;
+        const data = buffer.getChannelData(0);
+        
+        let wavData = [];
+        
+        wavData.push(0x52, 0x49, 0x46, 0x46);
+        const dataSize = 36 + numSamples * 2;
+        wavData.push(
+            dataSize & 0xFF,
+            (dataSize >> 8) & 0xFF,
+            (dataSize >> 16) & 0xFF,
+            (dataSize >> 24) & 0xFF
+        );
+        
+        wavData.push(0x57, 0x41, 0x56, 0x45);
+        
+        wavData.push(0x66, 0x6D, 0x74, 0x20);
+        wavData.push(16, 0, 0, 0);
+        wavData.push(1, 0);
+        wavData.push(1, 0);
+        wavData.push(
+            sampleRate & 0xFF,
+            (sampleRate >> 8) & 0xFF,
+            (sampleRate >> 16) & 0xFF,
+            (sampleRate >> 24) & 0xFF
+        );
+        const byteRate = sampleRate * 2;
+        wavData.push(
+            byteRate & 0xFF,
+            (byteRate >> 8) & 0xFF,
+            (byteRate >> 16) & 0xFF,
+            (byteRate >> 24) & 0xFF
+        );
+        wavData.push(2, 0);
+        wavData.push(16, 0);
+        
+        wavData.push(0x64, 0x61, 0x74, 0x61);
+        const audioSize = numSamples * 2;
+        wavData.push(
+            audioSize & 0xFF,
+            (audioSize >> 8) & 0xFF,
+            (audioSize >> 16) & 0xFF,
+            (audioSize >> 24) & 0xFF
+        );
+        
+        for (let i = 0; i < numSamples; i++) {
+            const sample = Math.max(-1, Math.min(1, data[i]));
+            const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+            const int16 = intSample | 0;
+            
+            wavData.push(int16 & 0xFF);
+            wavData.push((int16 >> 8) & 0xFF);
+        }
+        
+        const uint8Array = new Uint8Array(wavData);
+        const blob = new Blob([uint8Array], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'footstep_60s.wav';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        console.log('✅ 脚步声下载成功: footstep_60s.wav (60秒)');
+        alert('下载成功！\n文件名: footstep_60s.wav\n时长: 60秒\n大小: 约10MB');
+        
+    } catch(e) {
+        console.error('❌ 下载失败:', e);
+        alert('下载失败: ' + e.message);
+    }
+}
+
+window.addEventListener('load', function() {
+    console.log('👣 脚步声生成器已加载');
+});
+</script>
+
+</body>
+</html>

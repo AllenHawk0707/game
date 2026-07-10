@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星榆中学 2008 · 地下配电迷宫</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;margin:0 auto;background:#060606}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(function(){
+var C=document.getElementById('c');
+var ctx=C.getContext('2d');
+
+var W=960,H=540;
+C.width=W;C.height=H;
+
+function resize(){
+  var s=Math.min(window.innerWidth/W,window.innerHeight/H);
+  C.style.width=(W*s)+'px';
+  C.style.height=(H*s)+'px';
+}
+resize();window.addEventListener('resize',resize);
+
+// ── Palette ──
+var P={
+  BG:'#060606',
+  WALL:'#1a1a1a',
+  WALL2:'#2a2a2a',
+  WALL3:'#3a3a3a',
+  FLOOR:'#0e0e0e',
+  CORR:'#111',
+  HALL:'#0d0d0d',
+  ROOM:'#0f0f0f',
+  DARK:'#080808',
+  TEXT:'#666',
+  HINT:'#7a6a4a',
+  RED:'#662222',
+  GREEN:'#2a4a2a',
+  BLUE:'#2a3a5a',
+  YELLOW:'#4a3a1a',
+  PLAYER:'#7a7a7a',
+  PLAYER2:'#aaa',
+  DIALOG_BG:'#0a0a0a',
+  DIALOG_BORDER:'#333',
+  DIALOG_TITLE:'#aaa',
+  DIALOG_TEXT:'#777',
+  HUD:'#444',
+  DOOR:'#1a1a15',
+  INTERACT:'#777',
+  BREAKER:'#1a1a1a',
+  BREAKER_ON:'#2a5a2a',
+  BREAKER_OFF:'#4a1a1a',
+  MASTER:'#1D1D1D'
+};
+
+// ── Map Data ──
+var B={L:50,T:30,R:910,B:510};
+var CW=B.R-B.L, CH=B.B-B.T;
+
+// ── Maze Walls ──
+// 迷宫内部墙壁：精心设计让玩家在四角之间迂回
+// 结构：外框 + 内部隔墙形成蜿蜒通道
+var walls=[];
+
+// 外框
+walls.push({x:B.L,   y:B.T,   w:B.R-B.L,h:4});          // top
+walls.push({x:B.L,   y:B.B-4, w:B.R-B.L,h:4});          // bottom
+walls.push({x:B.L,   y:B.T,   w:4,      h:B.B-B.T});    // left
+walls.push({x:B.R-4, y:B.T,   w:4,      h:B.B-B.T});    // right
+
+// ── 内部迷宫墙壁（手动设计，形成迂回通道）──
+// 核心思路：将内部空间划分成几个区域，用断墙形成迷宫路径
+
+// 水平墙段（从 y=90 开始，到 y=450，每隔一定距离）
+
+    // 行1: y=90~94  (L型，从左边到右边某处断开)
+    // walls.push({x:B.L,   y:90,  w:200, h:4});  // 左段已删除
+    walls.push({x:260,   y:90,  w:250, h:4});  // 中左段
+    walls.push({x:570,   y:90,  w:180, h:4});  // 中右段
+    walls.push({x:810,   y:90,  w:B.R-B.L-810, h:4}); // 右段
+
+    // 行2: y=155~159
+    // walls.push({x:B.L,   y:155, w:130, h:4}); // 左段已删除
+    walls.push({x:200,   y:155, w:320, h:4});
+    walls.push({x:600,   y:155, w:120, h:4});
+    walls.push({x:790,   y:155, w:B.R-B.L-790, h:4});
+
+// 行3: y=225~229
+walls.push({x:B.L,   y:225, w:120, h:4}); // 左段（缩短）
+walls.push({x:220,   y:225, w:110, h:4}); // 左段后半（打通 170~220 通道）
+walls.push({x:350,   y:225, w:145, h:4});
+walls.push({x:560,   y:225, w:240, h:4});
+walls.push({x:860,   y:225, w:B.R-B.L-860, h:4});
+
+// 行4: y=295~299
+walls.push({x:B.L,   y:295, w:165, h:4});
+walls.push({x:235,   y:295, w:260, h:4});
+walls.push({x:565,   y:295, w:190, h:4});
+walls.push({x:825,   y:295, w:B.R-B.L-825, h:4});
+
+    // 行5: y=365~369
+    // walls.push({x:B.L,   y:365, w:100, h:4}); // 左段已删除
+    walls.push({x:170,   y:365, w:220, h:4});
+    walls.push({x:455,   y:365, w:155, h:4});
+    walls.push({x:675,   y:365, w:115, h:4}); // 右段（缩短）
+    walls.push({x:840,   y:365, w:75,  h:4}); // 右段后半（打通 790~840 通道）
+
+    // 行6: y=435~439
+    // walls.push({x:B.L,   y:435, w:240, h:4}); // 左段已删除
+    walls.push({x:305,   y:435, w:185, h:4});
+    walls.push({x:555,   y:435, w:300, h:4});
+
+// ── 垂直墙段 ──
+    // 列1: x=160~164  （已根据红圈删除整列）
+    // walls.push({x:160,  y:B.T,  w:4, h:35});
+    // walls.push({x:160,  y:120,  w:4, h:80});
+    // walls.push({x:160,  y:260,  w:4, h:80});
+    // walls.push({x:160,  y:400,  w:4, h:110});
+
+// 列2: x=310~314
+walls.push({x:310,  y:35,   w:4, h:55});
+walls.push({x:310,  y:155,  w:4, h:70});
+walls.push({x:310,  y:295,  w:4, h:70});
+walls.push({x:310,  y:435,  w:4, h:75});
+
+// 列3: x=480~484
+walls.push({x:480,  y:B.T,  w:4, h:40});
+walls.push({x:480,  y:130,  w:4, h:95});
+walls.push({x:480,  y:275,  w:4, h:90});
+walls.push({x:480,  y:415,  w:4, h:95});
+
+// 列4: x=650~654
+walls.push({x:650,  y:40,   w:4, h:50});
+walls.push({x:650,  y:155,  w:4, h:70});
+walls.push({x:650,  y:295,  w:4, h:70});
+walls.push({x:650,  y:435,  w:4, h:75});
+
+// 列5: x=750~754
+walls.push({x:750,  y:B.T,  w:4, h:35});
+walls.push({x:750,  y:130,  w:4, h:95});
+walls.push({x:750,  y:275,  w:4, h:90});
+walls.push({x:750,  y:420,  w:4, h:90});
+
+// ── 四角电闸 ──
+// 每个角落有一个小房间放一个电闸
+var breakers=[];
+
+function createCornerBreaker(idx, cx, cy){
+  var bw=28, bh=22;
+  breakers.push({
+    x:cx-bw/2, y:cy-bh/2, w:bw, h:bh,
+    index:idx, on:true,
+    label:'电闸 '+(idx+1),
+    zone:{x:cx-bw/2-8, y:cy-bh/2-8, w:bw+16, h:bh+16, id:'br_'+idx, type:'breaker', idx:idx}
+  });
+}
+
+// 四个角：左上、右上、左下、右下
+createCornerBreaker(0, B.L+60,  B.T+60);   // 左上
+createCornerBreaker(1, B.R-60,  B.T+60);   // 右上
+createCornerBreaker(2, B.L+60,  B.B-60);   // 左下
+createCornerBreaker(3, B.R-60,  B.B-60);   // 右下
+
+// 中央总控台（当四个分闸全部断开后激活）
+var masterSwitch={
+  x:B.L+CW/2-18, y:B.T+CH/2-18, w:36, h:36,
+  active:false, // 四个分闸全断后才激活
+  triggered:false,
+  zone:{x:B.L+CW/2-26, y:B.T+CH/2-26, w:52, h:52, id:'master', type:'master'}
+};
+
+// ── 隐藏小门（四闸全开后出现）──
+// 位置：右上角"口袋"死角（被行1墙 x:810 与列5墙 x:750 围出的死胡同尽头）
+var hiddenDoor={
+  x:790, y:104, w:16, h:26,
+  revealed:false,
+  zone:{x:790, y:104, w:16, h:26, id:'hidden_door', type:'hiddenDoor', label:'隐秘通道'}
+};
+
+// ── 上楼出口 ──
+var stairsZone={
+  x:B.L+CW/2-22, y:B.B-44, w:44, h:14,
+  id:'stairs_up', type:'stairs', label:'上楼·一楼'
+};
+
+// ── Interaction zones ──
+var interactZones=[];
+for(var i=0;i<breakers.length;i++) interactZones.push(breakers[i].zone);
+interactZones.push(masterSwitch.zone);
+interactZones.push(stairsZone);
+interactZones.push(hiddenDoor.zone);
+
+// ── State ──
+var allBreakersOff=false;
+var screenShake=0;
+var breakerFlashTimer=0; // 拉闸后闪烁显示5秒
+
+// ── 相机跟随系统 ──
+var CAM_ZOOM=2.5;
+var camera=null;
+
+function updateCamera(){
+  if(!camera){ camera={x:player.x+player.w/2, y:player.y+player.h/2}; return; }
+  var tx=player.x+player.w/2;
+  var ty=player.y+player.h/2;
+  var vw=W/CAM_ZOOM, vh=H/CAM_ZOOM;
+  if(vw<B.R-B.L){ tx=Math.max(B.L+vw/2, Math.min(B.R-vw/2, tx)); }
+  if(vh<B.B-B.T){ ty=Math.max(B.T+vh/2, Math.min(B.B-vh/2, ty)); }
+  camera.x=tx; camera.y=ty;
+}
+
+var player={
+  x:B.L+80, y:B.B-80,
+  w:12, h:18, vx:0, vy:0, speed:1.6,
+  facing:0, frame:0, walkTimer:0
+};
+window.__xyzh_player = player;
+(function(){
+  try{
+    var r=JSON.parse(sessionStorage.getItem('xyzh_resume')||'null');
+    if(r && r.map===location.pathname.split('/').pop()){
+      player.x=r.x; player.y=r.y;
+      sessionStorage.removeItem('xyzh_resume');
+    }
+  }catch(e){}
+})();
+
+var keys={};
+var dialog=null;
+var interactionHint=null;
+var tipText='';
+var tipTimer=0;
+
+// ── 追逐黑影 ──
+var chaser=null;
+var chaserDelay=30;       // 生成后延迟追逐（帧，约 0.5s）
+var CHASE_CHASER_RATIO=0.8;  // 黑影相对玩家速度
+var redFlashOn=true;      // 红色闪烁效果
+var bigTextTimer=180;     // 红色大字显示计时（3秒 = 180帧）
+var caughtDeath=false;    // 被黑影追上
+var caughtDeathStart=0;
+var playerDead=false;
+
+// 进入迷宫时激活追逐
+(function(){
+  try{ sessionStorage.setItem('chaseOn','1'); }catch(e){}
+  chaser={x:441, y:258, w:18, h:24, vx:0, vy:0};
+  // 延迟启动 chase 音频，确保用户手势上下文
+  setTimeout(function(){
+    if(typeof BGM!=='undefined') BGM.startChase();
+  }, 500);
+})();
+
+// ── Input ──
+window.addEventListener('keydown',function(e){
+  keys[e.key.toLowerCase()]=true;
+  if(e.key==='f'||e.key==='F'){
+    e.preventDefault();
+    if(dialog){ closeDialog(); return; }
+    if(interactionHint){ handleInteraction(interactionHint); }
+  }
+  if(e.key==='Escape'){
+    if(dialog) closeDialog();
+  }
+  if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','f','F'].includes(e.key)){
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup',function(e){ keys[e.key.toLowerCase()]=false; });
+
+// ── Collision ──
+function collides(rx,ry,rw,rh){
+  for(var i=0;i<walls.length;i++){
+    var w=walls[i];
+    if(rx<w.x+w.w && rx+rw>w.x && ry<w.y+w.h && ry+rh>w.y) return true;
+  }
+  if(rx<B.L || rx+rw>B.R) return true;
+  if(ry<B.T || ry+rh>B.B) return true;
+  return false;
+}
+
+function nearZone(px,py,zone){
+  var cx=px+player.w/2, cy=py+player.h/2;
+  var zcx=zone.x+zone.w/2, zcy=zone.y+zone.h/2;
+  var dx=Math.abs(cx-zcx), dy=Math.abs(cy-zcy);
+  return dx<zone.w/2+22 && dy<zone.h/2+34;
+}
+
+// ── Interaction ──
+function handleInteraction(hint){
+  if(hint.type==='breaker'){
+    var b=breakers[hint.idx];
+    b.on=!b.on;
+    breakerFlashTimer=60; // 1秒闪烁
+    BGM.tryPlaySwitchSound();
+    tip('电闸 '+(b.index+1)+' 已'+(b.on?'闭合':'断开'));
+    // 检查是否全部断开
+    var allOff=true;
+    for(var i=0;i<breakers.length;i++){ if(breakers[i].on) allOff=false; }
+    if(allOff && !allBreakersOff){
+      allBreakersOff=true;
+      masterSwitch.active=true;
+      screenShake=10;
+      BGM.tryPlaySwitchSound();
+      tip('⚠ 四个分闸全部断开！中央总控台被激活……');
+    }
+    if(!allOff){
+      allBreakersOff=false;
+      masterSwitch.active=false;
+    }
+    return;
+  }
+  if(hint.type==='master'){
+    if(!masterSwitch.active) return;
+    if(masterSwitch.triggered) return;
+    masterSwitch.triggered=true;
+    screenShake=20;
+    BGM.tryPlaySwitchSound();
+    // 不弹出新信息：与迷宫核心交互后，把玩家传送到 map1（一楼）的右上角，
+    // 0.5 秒后黑影也出现在 map1 右上角，沿用原有 A* 追逐 / 抓捕即死机制继续追
+    try{ sessionStorage.setItem('chaseOn','1'); }catch(e){}
+    try{ sessionStorage.setItem('map1_tp_tr','1'); }catch(e){}
+    // 追逐战拉完4闸后回到 map：标记「大闸门密码失效」，让大门变成无密码直通好结局
+    try{ sessionStorage.setItem('xyzh_chase_solved','1'); }catch(e){}
+    if(typeof BGM!=='undefined') BGM.startChase();
+    // 短延迟跳转，让开关音效先响一下再离开地下室
+    setTimeout(function(){ go('map.html'); }, 300);
+    return;
+  }
+  if(hint.type==='stairs'){
+    BGM.playStair(function(){
+      go('map.html');
+    });
+  }
+  if(hint.type==='hiddenDoor'){
+    if(!allBreakersOff) return;
+    // 拉完四个闸即可进入彩蛋房（map6），无需好结局前置
+    BGM.tryPlaySwitchSound();
+    // 进入实验区：结束追逐战（清除 chaseOn / chaserRel，并停止 BGM 追逐）
+    try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+    if(typeof BGM!=='undefined' && BGM.stopChase) BGM.stopChase();
+    // 短延迟跳转，让开关音效先响一下
+    setTimeout(function(){ go('map6.html'); }, 300);
+  }
+}
+
+function findInteraction(){
+  interactionHint=null;
+  // 更新隐藏门状态
+  hiddenDoor.revealed=allBreakersOff;
+  for(var i=0;i<interactZones.length;i++){
+    var z=interactZones[i];
+    if(z.type==='master' && !masterSwitch.active) continue;
+    if(z.type==='hiddenDoor' && !hiddenDoor.revealed) continue;
+    if(nearZone(player.x,player.y,z)){ interactionHint=z; return; }
+  }
+}
+
+// ── Dialog ──
+function openDialog(title,text){ dialog={title:title,text:text}; }
+function closeDialog(){ dialog=null; }
+function tip(msg){ tipText=msg; tipTimer=120; }
+
+// ── Update ──
+function update(){
+  var mx=0,my=0;
+  if(keys['w']||keys['arrowup']) my=-1;
+  if(keys['s']||keys['arrowdown']) my=1;
+  if(keys['a']||keys['arrowleft']) mx=-1;
+  if(keys['d']||keys['arrowright']) mx=1;
+  if(mx!==0&&my!==0){ mx*=0.707;my*=0.707; }
+  var moving=mx!==0||my!==0;
+  if(moving){
+    var nx=player.x+mx*player.speed;
+    if(!collides(nx,player.y,player.w,player.h)) player.x=nx;
+    var ny=player.y+my*player.speed;
+    if(!collides(player.x,ny,player.w,player.h)) player.y=ny;
+    if(Math.abs(mx)>Math.abs(my)){ player.facing=mx>0?3:2; }
+    else if(my!==0){ player.facing=my>0?0:1; }
+    player.walkTimer++;
+    if(player.walkTimer>12){ player.frame=(player.frame+1)%2; player.walkTimer=0; }
+    Footsteps.update(true, player.walkTimer);
+  }else{
+    player.frame=0; player.walkTimer=0;
+    Footsteps.update(false,0);
+  }
+  findInteraction();
+  updateChaser();
+  updateCamera();
+  if(bigTextTimer>0) bigTextTimer--;
+  if(tipTimer>0) tipTimer--;
+  if(tipTimer<=0) tipText='';
+  if(screenShake>0) screenShake--;
+  if(breakerFlashTimer>0) breakerFlashTimer--;
+}
+
+// ── Draw helpers ──
+function pxRect(x,y,w,h,c){
+  ctx.fillStyle=c;
+  ctx.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h));
+}
+function pxText(text,x,y,c,size,align){
+  ctx.fillStyle=c||P.TEXT;
+  ctx.font=(size||12)+'px "Courier New","SimSun",monospace';
+  ctx.textAlign=align||'left';
+  ctx.textBaseline='top';
+  ctx.fillText(text,x,y);
+}
+function drawBorder(x,y,w,h,c,t){
+  t=t||2;
+  pxRect(x,y,w,t,c); pxRect(x,y+h-t,w,t,c);
+  pxRect(x,y,t,h,c);   pxRect(x+w-t,y,t,h,c);
+}
+
+// 画电闸
+function drawBreaker(b,highlight){
+  var x=b.x,y=b.y,w=b.w,h=b.h;
+  pxRect(x,y,w,h,P.BREAKER);
+  drawBorder(x,y,w,h,'#3a3a3a',1);
+  // 指示灯
+  pxRect(x+w/2-4, y+3, 8, 5, b.on?P.BREAKER_ON:P.BREAKER_OFF);
+  // 扳手
+  pxRect(x+w/2-1.5, y+9, 3, 10, b.on?'#8ac88a':'#c88a8a');
+  // 标签
+  pxText(b.label, x+w/2, y-10, '#777', 7, 'center');
+  if(highlight){
+    var t=Math.sin(Date.now()*0.005)*0.3+0.5;
+    drawBorder(x-3,y-3,w+6,h+6,'rgba(255,200,100,'+t+')',1);
+  }
+}
+
+// 画中央总控台
+function drawMaster(highlight){
+  var x=masterSwitch.x,y=masterSwitch.y,w=masterSwitch.w,h=masterSwitch.h;
+  if(!masterSwitch.active){
+    // 未激活状态：暗灰色
+    pxRect(x,y,w,h,'#111');
+    drawBorder(x,y,w,h,'#222',2);
+    pxText('????', x+w/2, y+h/2-6, '#333', 8, 'center');
+    return;
+  }
+  // 激活状态
+  if(masterSwitch.triggered){
+    pxRect(x,y,w,h,'#1a1515');
+    drawBorder(x,y,w,h,'#3a2525',2);
+    pxText('已完成', x+w/2, y+h/2-6, '#663333', 8, 'center');
+    return;
+  }
+  pxRect(x,y,w,h,P.MASTER);
+  drawBorder(x,y,w,h,'#5a4530',2);
+  // 中央按钮
+  var pulse=Math.sin(Date.now()*0.006)*0.3+0.7;
+  pxRect(x+6,y+6,w-12,h-12,'#111');
+  pxRect(x+w/2-5,y+h/2-5,10,10,'rgba(180,100,30,'+pulse+')');
+  pxText('总控', x+w/2, y-9, '#b8902f', 7, 'center');
+  if(highlight){
+    var t2=Math.sin(Date.now()*0.005)*0.3+0.5;
+    drawBorder(x-3,y-3,w+6,h+6,'rgba(255,200,100,'+t2+')',1);
+  }
+}
+
+// 绘制隐藏小门（与墙壁融为一体，四闸全开后微弱发光）
+function drawHiddenDoor(){
+  var x=hiddenDoor.x, y=hiddenDoor.y, w=hiddenDoor.w, h=hiddenDoor.h;
+  if(hiddenDoor.revealed){
+    // 四闸全开后：门缝微微发亮，几乎难以察觉
+    var pulse=Math.sin(Date.now()*0.003)*0.08+0.12;
+    // 门板（比墙略深，与墙几乎同色）
+    pxRect(x,y,w,h,'#121210');
+    // 仅一条竖直门缝，微弱光线泄漏
+    pxRect(x+w/2-0.5, y+3, 1, h-6, 'rgba(90,80,45,'+pulse+')');
+    // 高亮时显示提示
+    if(interactionHint && interactionHint.id==='hidden_door'){
+      var hlPulse=Math.sin(Date.now()*0.006)*0.25+0.45;
+      drawBorder(x-2,y-2,w+4,h+4,'rgba(180,150,80,'+hlPulse+')',1);
+      pxText('隐秘通道', x+w/2, y-8, 'rgba(180,150,80,'+hlPulse+')', 7, 'center');
+    }
+  }else{
+    // 未激活：完全融入墙壁，肉眼不可见
+    pxRect(x,y,w,h,P.WALL3);
+    // 极其细微的接缝线（墙砖纹理）
+    drawBorder(x,y,w,h,'rgba(35,35,35,0.5)',1);
+  }
+}
+
+// ── Draw pixel character ──
+function drawPlayer(px,py){
+  var ox=Math.floor(px), oy=Math.floor(py);
+  var f=player.facing;
+  pxRect(ox+2,oy+16,10,2,'rgba(0,0,0,0.5)');
+  var legOff=player.frame*2;
+  if(f===0){
+    pxRect(ox+2,oy+11,3,5,P.PLAYER); pxRect(ox+7,oy+11,3,5,P.PLAYER);
+    if(player.frame===0){ pxRect(ox+2,oy+13+legOff,3,3,'#333'); pxRect(ox+7,oy+13-legOff,3,3,'#333'); }
+    else { pxRect(ox+2,oy+13-legOff,3,3,'#333'); pxRect(ox+7,oy+13+legOff,3,3,'#333'); }
+  }else if(f===1){
+    pxRect(ox+2,oy+11,3,5,P.PLAYER); pxRect(ox+7,oy+11,3,5,P.PLAYER);
+  }else{
+    pxRect(ox+2,oy+11,3,5,P.PLAYER); pxRect(ox+7,oy+11,3,5,P.PLAYER);
+    if(player.frame===0) pxRect(ox+2,oy+13+legOff,3,3,'#333');
+    else pxRect(ox+7,oy+13+legOff,3,3,'#333');
+  }
+  pxRect(ox+2,oy+6,8,7,'#666');
+  pxRect(ox+3,oy+6,6,7,P.PLAYER);
+  if(f===2) pxRect(ox,oy+7,3,4,P.PLAYER);
+  else if(f===3) pxRect(ox+9,oy+7,3,4,P.PLAYER);
+  else{ pxRect(ox,oy+7,3,4,P.PLAYER); pxRect(ox+9,oy+7,3,4,P.PLAYER); }
+  pxRect(ox+3,oy,6,7,P.PLAYER2);
+  pxRect(ox+4,oy+1,4,5,'#ddd');
+  if(f===0){ pxRect(ox+5,oy+3,1,1,'#222');pxRect(ox+8,oy+3,1,1,'#222'); }
+  else if(f===1){ pxRect(ox+5,oy+2,1,1,'#222');pxRect(ox+8,oy+2,1,1,'#222'); }
+  else if(f===2){ pxRect(ox+4,oy+3,1,1,'#222'); }
+  else{ pxRect(ox+9,oy+3,1,1,'#222'); }
+  pxRect(ox+3,oy,6,2,'#444');
+}
+
+// ── 追逐黑影（A* 寻路，自动绕过障碍物）──
+var CELL_SIZE=20;
+var PATH_RECALC=12;        // 每12帧重新规划路线
+var chaserPath=[];
+var pathRecalcCounter=0;
+var cachedGrid=null;
+
+// 从墙壁构建占用网格（缓存，墙不变）
+function buildGrid(){
+  var gw=Math.ceil((B.R-B.L)/CELL_SIZE);
+  var gh=Math.ceil((B.B-B.T)/CELL_SIZE);
+  var g=[];
+  for(var gx=0;gx<gw;gx++){
+    g[gx]=[];
+    for(var gy=0;gy<gh;gy++){
+      var cx=B.L+gx*CELL_SIZE, cy=B.T+gy*CELL_SIZE;
+      var blocked=false;
+      for(var i=0;i<walls.length;i++){
+        var w=walls[i];
+        if(cx<w.x+w.w && cx+CELL_SIZE>w.x && cy<w.y+w.h && cy+CELL_SIZE>w.y){
+          blocked=true; break;
+        }
+      }
+      // 外框也算墙
+      if(cx<B.L+4 || cx+CELL_SIZE>B.R-4 || cy<B.T+4 || cy+CELL_SIZE>B.B-4) blocked=true;
+      g[gx][gy]=blocked?1:0;
+    }
+  }
+  return g;
+}
+function getGrid(){ if(!cachedGrid) cachedGrid=buildGrid(); return cachedGrid; }
+
+function worldToGrid(wx,wy){
+  return {x:Math.floor((wx-B.L)/CELL_SIZE), y:Math.floor((wy-B.T)/CELL_SIZE)};
+}
+function gridToWorld(gx,gy){
+  return {x:B.L+gx*CELL_SIZE+CELL_SIZE/2, y:B.T+gy*CELL_SIZE+CELL_SIZE/2};
+}
+
+function heuristic(x1,y1,x2,y2){ return Math.abs(x1-x2)+Math.abs(y1-y2); }
+
+// A* 寻路
+function findPath(fromWX,fromWY,toWX,toWY){
+  var grid=getGrid();
+  var gw=grid.length, gh=grid[0].length;
+  var s=worldToGrid(fromWX,fromWY);
+  var g=worldToGrid(toWX,toWY);
+  s.x=Math.max(0,Math.min(gw-1,s.x)); s.y=Math.max(0,Math.min(gh-1,s.y));
+  g.x=Math.max(0,Math.min(gw-1,g.x)); g.y=Math.max(0,Math.min(gh-1,g.y));
+  if(s.x===g.x&&s.y===g.y) return null;
+  if(grid[s.x][s.y]===1||grid[g.x][g.y]===1) return null;
+  var open=[], closed={};
+  var sn={x:s.x,y:s.y,g:0,h:heuristic(s.x,s.y,g.x,g.y),parent:null}; sn.f=sn.g+sn.h;
+  open.push(sn);
+  var dirs=[[0,-1],[0,1],[-1,0],[1,0]];
+  var limit=800;
+  while(open.length>0 && limit-- > 0){
+    var best=0;
+    for(var i=1;i<open.length;i++){ if(open[i].f<open[best].f) best=i; }
+    var cur=open[best];
+    if(cur.x===g.x&&cur.y===g.y){
+      var path=[], node=cur;
+      while(node){ path.unshift(gridToWorld(node.x,node.y)); node=node.parent; }
+      if(path.length>1) path.shift(); // 去掉起点
+      return path;
+    }
+    open.splice(best,1); closed[cur.x+','+cur.y]=true;
+    for(var d=0;d<dirs.length;d++){
+      var nx=cur.x+dirs[d][0], ny=cur.y+dirs[d][1];
+      if(nx<0||nx>=gw||ny<0||ny>=gh) continue;
+      if(grid[nx][ny]===1) continue;
+      var nk=nx+','+ny; if(closed[nk]) continue;
+      var inOpen=false;
+      for(var oi=0;oi<open.length;oi++){
+        if(open[oi].x===nx&&open[oi].y===ny){
+          inOpen=true; var ng=cur.g+1;
+          if(ng<open[oi].g){ open[oi].g=ng; open[oi].f=ng+open[oi].h; open[oi].parent=cur; }
+          break;
+        }
+      }
+      if(!inOpen){
+        var gv=cur.g+1, hv=heuristic(nx,ny,g.x,g.y);
+        open.push({x:nx,y:ny,g:gv,h:hv,f:gv+hv,parent:cur});
+      }
+    }
+  }
+  return null; // 无路径
+}
+
+// 黑影追逐：A* 巡线，自动绕过障碍物
+// 速度变速：距离越远越快，距离越近越慢（营造追逐紧张感）
+function updateChaser(){
+  if(!chaser || playerDead) return;
+  if(chaserDelay>0){ chaserDelay--; return; }
+  var ccx=chaser.x+chaser.w/2, ccy=chaser.y+chaser.h/2;
+  var pcx=player.x+player.w/2, pcy=player.y+player.h/2;
+
+  // 动态速度：根据与玩家的距离（缓降曲线）
+  var dxToPlayer=pcx-ccx, dyToPlayer=pcy-ccy;
+  var distPlayer=Math.sqrt(dxToPlayer*dxToPlayer+dyToPlayer*dyToPlayer);
+  var minDist=80, maxDist=500;
+  var minRatio=0.95, maxRatio=1.8;
+  var t=Math.min(1,Math.max(0,(distPlayer-minDist)/(maxDist-minDist)));
+  var ratio=minRatio+(maxRatio-minRatio)*Math.pow(t,0.5);
+  var ps=player.speed*ratio;
+
+  // 定期重新规划路径
+  pathRecalcCounter--;
+  if(pathRecalcCounter<=0){
+    pathRecalcCounter=PATH_RECALC;
+    var p=findPath(ccx,ccy,pcx,pcy);
+    if(p&&p.length>0) chaserPath=p;
+  }
+
+  // 沿路径移动
+  if(chaserPath.length>0){
+    var tgt=chaserPath[0];
+    var dx=tgt.x-ccx, dy=tgt.y-ccy;
+    var dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<3){ chaserPath.shift(); }
+    else{ chaser.x+=dx/dist*ps; chaser.y+=dy/dist*ps; }
+  }else{
+    // 无路径时直线逼近（带碰撞）
+    var dx2=pcx-ccx, dy2=pcy-ccy;
+    var dist2=Math.sqrt(dx2*dx2+dy2*dy2);
+    if(dist2>0){ var vx2=dx2/dist2*ps, vy2=dy2/dist2*ps;
+      var nx2=chaser.x+vx2; if(!collides(nx2,chaser.y,chaser.w,chaser.h)) chaser.x=nx2;
+      var ny2=chaser.y+vy2; if(!collides(chaser.x,ny2,chaser.w,chaser.h)) chaser.y=ny2;
+    }
+  }
+
+  // 碰撞检测：碰到玩家则死亡
+  if(chaser.x<player.x+player.w && chaser.x+chaser.w>player.x &&
+     chaser.y<player.y+player.h && chaser.y+chaser.h>player.y){
+    triggerChaserDeath();
+  }
+}
+
+function drawChaser(){
+  if(!chaser) return;
+  pxRect(chaser.x, chaser.y, chaser.w, chaser.h, '#000');
+  pxRect(chaser.x+chaser.w/2-2, chaser.y-9, 4, 10, '#000');
+  var glow=Math.sin(Date.now()*0.01)*0.25+0.4;
+  ctx.strokeStyle='rgba(140,0,0,'+glow+')';
+  ctx.lineWidth=2;
+  ctx.strokeRect(chaser.x-1, chaser.y-10, chaser.w+2, chaser.h+10);
+}
+
+// 被黑影追上：定格、浮现红色大字"你死了"，存档后返回标题
+function triggerChaserDeath(){
+  try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+  if(chaser){ chaser.x=player.x+player.w/2-chaser.w/2; chaser.y=player.y+player.h/2-chaser.h/2; }
+  playerDead=true;
+  caughtDeath=true;
+  caughtDeathStart=Date.now();
+  if(typeof BGM!=='undefined') BGM.stopChase();
+  if(typeof SaveSystem!=='undefined') SaveSystem.saveCurrent();
+  setTimeout(function(){
+    go('start.html');
+  }, 2000);
+}
+
+function drawChaserDeath(){
+  if(!caughtDeath) return;
+  var alpha=Math.min(1,(Date.now()-caughtDeathStart||0)/500);
+  pxRect(0,0,W,H,'rgba(0,0,0,'+alpha*0.7+')');
+  // 晃动的"你死了"
+  var sx2=(Math.random()-0.5)*4;
+  var sy2=(Math.random()-0.5)*4;
+  pxText('你死了',W/2+sx2+2,H/2+sy2-24+2,'#000',42,'center');
+  pxText('你死了',W/2+sx2,  H/2+sy2-24,  '#a00',42,'center');
+}
+
+// ── Render ──
+function render(){
+  ctx.clearRect(0,0,W,H);
+  var sx=screenShake>0?(Math.random()-0.5)*screenShake:0;
+  var sy=screenShake>0?(Math.random()-0.5)*screenShake:0;
+
+  // ── 世界层（相机跟随）──
+  ctx.save();
+  ctx.translate(sx,sy);
+  ctx.translate(W/2, H/2);
+  ctx.scale(CAM_ZOOM, CAM_ZOOM);
+  ctx.translate(-camera.x, -camera.y);
+
+  // Floor
+  pxRect(B.L,B.T,B.R-B.L,B.B-B.T,P.FLOOR);
+
+  // 地板纹理 - 淡网格
+  for(var gx=B.L;gx<B.R;gx+=40){
+    for(var gy=B.T;gy<B.B;gy+=40){
+      pxRect(gx,gy,1,1,'#111');
+    }
+  }
+
+  // 四角电闸标记区域（地板颜色提示）
+  var corners=[
+    {x:B.L+4, y:B.T+4, w:110, h:110},
+    {x:B.R-114, y:B.T+4, w:110, h:110},
+    {x:B.L+4, y:B.B-114, w:110, h:110},
+    {x:B.R-114, y:B.B-114, w:110, h:110}
+  ];
+  for(var ci=0;ci<corners.length;ci++){
+    var cc=corners[ci];
+    pxRect(cc.x,cc.y,cc.w,cc.h,'#0d0d0d');
+    drawBorder(cc.x,cc.y,cc.w,cc.h,'#1a1a1a',1);
+  }
+
+  // 中央总控台区域
+  pxRect(B.L+CW/2-40, B.T+CH/2-40, 80, 80, '#0d0d0d');
+  drawBorder(B.L+CW/2-40, B.T+CH/2-40, 80, 80, '#1a1a1a',1);
+
+  // 楼梯出口区域（底部中央）
+  var stx=stairsZone.x, sty=stairsZone.y, stw=stairsZone.w, sth=stairsZone.h;
+  pxRect(stx-6, sty-8, stw+12, sth+16, '#0e0e0c');
+  drawBorder(stx-6, sty-8, stw+12, sth+16, '#2a2a2a',1);
+  for(var sty2=0;sty2<3;sty2++){
+    pxRect(stx+4, sty+sth-sty2*5-4, stw-8, 3, '#1a1a1a');
+  }
+  pxText('↑ 出口', stx+stw/2, sty-6, '#666', 7, 'center');
+
+  // 走廊区域（轻微着色）
+  pxRect(B.L, B.T+110, B.R-B.L, CH-220, P.CORR);
+
+  // Draw walls
+  for(var i=0;i<walls.length;i++){
+    var w=walls[i];
+    pxRect(w.x,w.y,w.w,w.h,P.WALL3);
+  }
+  drawBorder(B.L,B.T,B.R-B.L,B.B-B.T,'#4a4a4a',4);
+
+  // Draw breakers
+  for(var i=0;i<breakers.length;i++){
+    var b=breakers[i];
+    var hl=interactionHint && interactionHint===b.zone;
+    drawBreaker(b,hl);
+  }
+
+  // Draw master
+  var mhl=interactionHint && interactionHint===masterSwitch.zone;
+  drawMaster(mhl);
+
+  // 隐藏小门（四闸全开后微弱可见）
+  drawHiddenDoor();
+
+  // Player & Chaser
+  drawPlayer(player.x,player.y);
+  drawChaser();
+
+
+
+
+  // Interaction hint (world space, above player)
+  if(interactionHint && !dialog){
+    var label;
+    if(interactionHint.type==='master') label='中央总控台';
+    else if(interactionHint.type==='stairs') label='上楼·一楼';
+    else if(interactionHint.type==='hiddenDoor') label='隐秘通道 [F]';
+    else label='电闸 '+(breakers[interactionHint.idx].index+1);
+    var hintY=player.y-14;
+    var tw=(label.length+4)*7;
+    pxRect(player.x+player.w/2-tw/2-4,hintY-2,tw+8,12,'rgba(0,0,0,0.85)');
+    pxText('[F] '+label,player.x+player.w/2,hintY,'#fff',8,'center');
+  }
+
+  ctx.restore();
+
+  // ── 屏幕层（不跟随相机）──
+  // 黑暗视野
+  var spx=(player.x+player.w/2-camera.x)*CAM_ZOOM+W/2;
+  var spy=(player.y+player.h/2-camera.y)*CAM_ZOOM+H/2;
+  var dg=ctx.createRadialGradient(spx,spy,45,spx,spy,180);
+  dg.addColorStop(0,'rgba(0,0,0,0)');
+  dg.addColorStop(0.35,'rgba(0,0,0,0.45)');
+  dg.addColorStop(1,'rgba(0,0,0,0.88)');
+  ctx.fillStyle=dg;
+  ctx.fillRect(0,0,W,H);
+
+  // 全屏红色闪烁
+  if(redFlashOn && !playerDead){
+    var rf=Math.sin(Date.now()*0.008)*0.08+0.15;
+    pxRect(0,0,W,H,'rgba(150,0,0,'+rf+')');
+  }
+
+  // 红色大字提示
+  if(bigTextTimer>0 && !playerDead){
+    var btAlpha=Math.min(1, bigTextTimer/60);
+    var btPulse=Math.sin(Date.now()*0.005)*0.3+0.7;
+    pxText('关闭应急电闸',W/2+2,H/2-42+2,'rgba(0,0,0,'+btAlpha*0.6+')',22,'center');
+    pxText('使大门系统断电！',W/2+2,H/2-14+2,'rgba(0,0,0,'+btAlpha*0.6+')',22,'center');
+    pxText('关闭应急电闸',W/2,H/2-42,'rgba(200,20,20,'+btAlpha*btPulse+')',22,'center');
+    pxText('使大门系统断电！',W/2,H/2-14,'rgba(200,20,20,'+btAlpha*btPulse+')',22,'center');
+  }
+
+  // 被黑影追上："你死了"大字
+  drawChaserDeath();
+
+  // 屏幕正上方拉闸计数（拉闸后闪烁显示5秒）
+  if(breakerFlashTimer>0){
+    var offCount=0;
+    for(var i=0;i<breakers.length;i++){ if(!breakers[i].on) offCount++; }
+    var blinkAlpha=Math.sin(Date.now()*0.02)*0.5+0.5;
+    pxText('已拉闸: '+offCount+'/4',W/2,30,offCount===4?'rgba(204,68,68,'+blinkAlpha+')':'rgba(170,170,170,'+blinkAlpha+')',50,'center');
+  }
+
+  // HUD bottom
+  pxRect(0,H-22,W,22,'rgba(0,0,0,0.75)');
+  pxText('WASD 移动   F 互动   ESC 关闭',10,H-16,P.HUD,9);
+
+  // 时间HUD
+  if(typeof GameTime!=='undefined'){
+    var t=GameTime.label();
+    if(t) pxText('时间 '+t, W-10, 18, '#888', 10, 'right');
+  }
+
+  // Tip
+  if(tipText){
+    var tw2=tipText.length*7;
+    pxRect(W/2-tw2/2-6,4,tw2+12,16,'rgba(0,0,0,0.9)');
+    pxText(tipText,W/2,7,'#aaa',9,'center');
+  }
+
+  // Dialog
+  if(dialog){
+    pxRect(0,0,W,H,'rgba(0,0,0,0.8)');
+    var dw=500,dh=340;
+    var dx=(W-dw)/2, dy=(H-dh)/2;
+    pxRect(dx,dy,dw,dh,P.DIALOG_BG);
+    drawBorder(dx,dy,dw,dh,P.DIALOG_BORDER,3);
+    pxRect(dx,dy,dw,22,'#0d0d0d');
+    drawBorder(dx,dy,dw,22,P.DIALOG_BORDER,1);
+    pxText(dialog.title,dx+dw/2,dy+5,P.DIALOG_TITLE,12,'center');
+    var lines=dialog.text.split('\n');
+    for(var li=0;li<lines.length;li++){
+      pxText(lines[li],dx+16,dy+28+li*13,P.DIALOG_TEXT,10);
+    }
+    pxText('[F] / [ESC] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+  }
+}
+
+// ── Footsteps system ──
+var Footsteps = {
+  audioCtx:null, isPlaying:false, lastStepTime:0, stepInterval:250,
+  init:function(){
+    try{ this.audioCtx=new(window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+  },
+  playStep:function(){
+    if(!this.audioCtx) this.init();
+    if(!this.audioCtx) return;
+    var now=Date.now();
+    if(now-this.lastStepTime<this.stepInterval) return;
+    this.lastStepTime=now;
+    try{
+      var c=this.audioCtx, duration=0.15;
+      var buffer=c.createBuffer(1,c.sampleRate*duration,c.sampleRate);
+      var data=buffer.getChannelData(0);
+      for(var i=0;i<data.length;i++){
+        var t=i/c.sampleRate, s=0;
+        if(t<0.01) s=(t/0.01)*Math.random()*0.4;
+        else if(t<0.05) s=Math.random()*0.5+0.3+Math.sin(t*400)*0.1;
+        else if(t<0.1){ var d=(t-0.05)/0.05; s=(1-d)*(Math.random()*0.3+0.15); }
+        else if(t<duration){ var f=(t-0.1)/(duration-0.1); s=(1-f)*Math.random()*0.08; }
+        data[i]=s*0.5;
+      }
+      var src=c.createBufferSource(); src.buffer=buffer;
+      var g=c.createGain(); g.gain.setValueAtTime(0.4,c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+duration);
+      src.connect(g); g.connect(c.destination); src.start(0);
+    }catch(e){}
+  },
+  start:function(){ if(!this.isPlaying){ this.isPlaying=true; if(!this.audioCtx&&typeof AudioContext!=='undefined') this.init(); } },
+  stop:function(){ this.isPlaying=false; this.lastStepTime=0; },
+  update:function(isMoving,wt){
+    if(isMoving){ this.start(); if(wt===0||wt%12===0) this.playStep(); }
+    else this.stop();
+  }
+};
+document.addEventListener('DOMContentLoaded',function(){
+  document.addEventListener('keydown',function(){ if(!Footsteps.audioCtx) Footsteps.init(); });
+});
+
+// ── Game Loop ──
+function gameLoop(){
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+tip('WASD 移动，找到四个角落的电闸，全部断开以激活中央总控台');
+gameLoop();
+})();
+</script>
+<script src="time.js"></script>
+<script src="bgm.js"></script>
+<script src="save.js"></script>
+</body>
+</html>

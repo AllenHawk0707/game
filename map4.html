@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星榆中学 2008 · 配电隔间</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;margin:0 auto;background:#0a0a0a}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(function(){
+var C=document.getElementById('c');
+var ctx=C.getContext('2d');
+
+var W=960,H=540;
+C.width=W;C.height=H;
+
+function resize(){
+  var s=Math.min(window.innerWidth/W,window.innerHeight/H);
+  C.style.width=(W*s)+'px';
+  C.style.height=(H*s)+'px';
+}
+resize();window.addEventListener('resize',resize);
+
+// ── Palette ──
+var P={
+  BG:'#0a0a0a',
+  WALL:'#2a2a2a',
+  WALL2:'#3a3a3a',
+  WALL3:'#444',
+  FLOOR:'#161616',
+  ROOM:'#1a1a1a',
+  DARK:'#111',
+  TEXT:'#777',
+  HINT:'#8a7a5a',
+  RED:'#883333',
+  GREEN:'#3a5a3a',
+  PLAYER:'#8a8a8a',
+  PLAYER2:'#bbb',
+  DIALOG_BG:'#111',
+  DIALOG_BORDER:'#444',
+  DIALOG_TITLE:'#bbb',
+  DIALOG_TEXT:'#888',
+  HUD:'#555',
+  INTERACT:'#888',
+  BREAKER:'#222',
+  BREAKER_ON:'#3a5a3a',
+  BREAKER_OFF:'#5a2a2a',
+  MASTER:'#2a2622'
+};
+
+// ── Map Data：极小单人隔间（单间，无多余通道）──
+var B={ L:200, T:140, R:760, B:400 }; // 单间 560x260
+var CW=B.R-B.L;
+var CH=B.B-B.T;
+
+var powerOn=true;          // 总供电状态
+var shake=0;
+var tripping=false;         // 分闸逐个熄灭动画进行中
+var tripQueue=[];           // 待熄灭的分闸索引
+var tripTimer=0;            // 熄灭节奏计时
+var tripInterval=14;        // 每多少帧熄灭一个
+var returnToMap3=false;     // 关闭主控断电文本后传送回三楼卫生间外
+
+// 上方一面墙排布的电闸（分闸）
+var breakers=[];
+(function buildBreakers(){
+  var n=5, bw=24, bh=18, gap=14;
+  var total=n*bw+(n-1)*gap;
+  var sx=B.L+(CW-total)/2;
+  var by=B.T+8; // 紧贴顶墙下方
+  for(var i=0;i<n;i++){
+    breakers.push({
+      x:sx+i*(bw+gap), y:by, w:bw, h:bh,
+      index:i, on:true, lit:true,
+      zone:{x:sx+i*(bw+gap)-6, y:by-6, w:bw+12, h:bh+12, id:'br_'+i, type:'breaker', idx:i}
+    });
+  }
+})();
+
+// 房间中央的主控电闸
+var master={
+  x:B.L+CW/2-16, y:B.T+CH/2-22, w:32, h:44,
+  zone:{x:B.L+CW/2-26, y:B.T+CH/2-32, w:52, h:64, id:'master', type:'master'}
+};
+
+// ── Walls（四面墙，封死，无通道）──
+var walls=[
+  {x:B.L,    y:B.T,    w:B.R-B.L, h:4},          // top
+  {x:B.L,    y:B.B-4,  w:B.R-B.L, h:4},          // bottom
+  {x:B.L,    y:B.T,    w:4,       h:B.B-B.T},    // left
+  {x:B.R-4,  y:B.T,    w:4,       h:B.B-B.T}     // right
+];
+
+// ── Interaction zones ──
+var interactZones=[];
+for(var i=0;i<breakers.length;i++) interactZones.push(breakers[i].zone);
+interactZones.push(master.zone);
+
+// ── Documents ──
+var docs={
+  master_off:{
+    title:'配电隔间 — 总闸已拉下',
+    text:'你用力扳下总闸，整间屋子嗡的一声陷入黑暗。\n\n空气里只剩配电箱深处微弱的电流余响。\n墙上的分闸指示灯逐一熄灭，像一只只闭上眼睛。\n\n黑暗中，你似乎听见地板尽头有什么东西，轻轻动了一下……'
+  }
+};
+
+// ── State ──
+var player={
+  x:B.L+CW/2-6, y:B.B-44,
+  w:12, h:18, vx:0, vy:0, speed:1.6,
+  facing:0, frame:0, walkTimer:0
+};
+window.__xyzh_player = player;
+
+var keys={};
+var dialog=null;
+var interactionHint=null;
+var tipText='';
+var tipTimer=0;
+
+// ── Input ──
+window.addEventListener('keydown',function(e){
+  keys[e.key.toLowerCase()]=true;
+  if(e.key==='f'||e.key==='F'){
+    e.preventDefault();
+    if(dialog){ closeDialog(); return; }
+    if(interactionHint){ handleInteraction(interactionHint); }
+  }
+  if(e.key==='Escape'){
+    if(dialog) closeDialog();
+  }
+  if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','f','F'].includes(e.key)){
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup',function(e){ keys[e.key.toLowerCase()]=false; });
+
+// ── Collision ──
+function collides(rx,ry,rw,rh){
+  for(var i=0;i<walls.length;i++){
+    var w=walls[i];
+    if(rx<w.x+w.w && rx+rw>w.x && ry<w.y+w.h && ry+rh>w.y) return true;
+  }
+  if(rx<B.L || rx+rw>B.R) return true;
+  if(ry<B.T || ry+rh>B.B) return true;
+  return false;
+}
+
+function nearZone(px,py,zone){
+  var cx=px+player.w/2, cy=py+player.h/2;
+  var zcx=zone.x+zone.w/2, zcy=zone.y+zone.h/2;
+  var dx=Math.abs(cx-zcx), dy=Math.abs(cy-zcy);
+  return dx<zone.w/2+22 && dy<zone.h/2+34;
+}
+
+// ── Interaction ──
+function handleInteraction(hint){
+  if(hint.type==='breaker'){
+    var b=breakers[hint.idx];
+    b.on=!b.on;
+    b.lit=b.on;
+    BGM.tryPlaySwitchSound();
+    tip('分闸 '+(b.index+1)+' 已'+(b.on?'闭合（通电）':'断开（断电）'));
+    // 彩蛋：全部断开
+    var allOff=true;
+    for(var i=0;i<breakers.length;i++){ if(breakers[i].on) allOff=false; }
+    if(allOff) tip('所有分闸已断开，隔间彻底沉寂……');
+    return;
+  }
+  if(hint.type==='master'){
+    if(tripping) return; // 跳闸动画进行中，忽略重复触发
+    if(powerOn){
+      // 拉下：触发分闸一个一个熄灭的动画，全部熄灭后才全屋断电
+      tripping=true;
+      tripQueue=[0,1,2,3,4];
+      tripTimer=0;
+      BGM.tryPlaySwitchSound();
+      shake=8;
+      tip('总闸被扳动，墙上的分闸接连熄灭……');
+    }else{
+      // 合上：恢复供电，分闸重新亮起
+      powerOn=true;
+      for(var i=0;i<breakers.length;i++) breakers[i].lit=breakers[i].on;
+      BGM.tryPlaySwitchSound();
+      if(dialog) closeDialog();
+      tip('总闸合上，电流恢复，隔间重新亮起');
+    }
+    return;
+  }
+}
+
+function findInteraction(){
+  interactionHint=null;
+  for(var i=0;i<interactZones.length;i++){
+    var z=interactZones[i];
+    if(nearZone(player.x,player.y,z)){ interactionHint=z; return; }
+  }
+}
+
+// ── Dialog ──
+function openDialog(title,text){ dialog={title:title,text:text}; }
+function closeDialog(){
+  if(returnToMap3){
+    returnToMap3=false;
+    // 定位到三楼卫生间门外（col4 走廊，门下方）
+    try{
+      sessionStorage.setItem('xyzh_resume', JSON.stringify({map:'map3.html', x:621, y:166}));
+    }catch(e){}
+    window.location.href='map3.html';
+    return;
+  }
+  dialog=null;
+}
+
+function tip(msg){ tipText=msg; tipTimer=110; }
+
+// ── Update ──
+function update(){
+  var mx=0,my=0;
+  if(keys['w']||keys['arrowup']) my=-1;
+  if(keys['s']||keys['arrowdown']) my=1;
+  if(keys['a']||keys['arrowleft']) mx=-1;
+  if(keys['d']||keys['arrowright']) mx=1;
+  if(mx!==0&&my!==0){ mx*=0.707;my*=0.707; }
+  var moving=mx!==0||my!==0;
+  if(moving){
+    var nx=player.x+mx*player.speed;
+    if(!collides(nx,player.y,player.w,player.h)) player.x=nx;
+    var ny=player.y+my*player.speed;
+    if(!collides(player.x,ny,player.w,player.h)) player.y=ny;
+    if(Math.abs(mx)>Math.abs(my)){ player.facing=mx>0?3:2; }
+    else if(my!==0){ player.facing=my>0?0:1; }
+    player.walkTimer++;
+    if(player.walkTimer>12){ player.frame=(player.frame+1)%2; player.walkTimer=0; }
+    Footsteps.update(true, player.walkTimer);
+  }else{
+    player.frame=0; player.walkTimer=0;
+    Footsteps.update(false,0);
+  }
+  findInteraction();
+
+  // 分闸逐个熄灭动画
+  if(tripping){
+    tripTimer++;
+    if(tripTimer>=tripInterval && tripQueue.length>0){
+      tripTimer=0;
+      var di=tripQueue.shift();
+      breakers[di].lit=false;
+      BGM.tryPlaySwitchSound();
+    }
+    if(tripQueue.length===0){
+      tripping=false;
+      powerOn=false;
+      returnToMap3=true; // 关闭此文本后传送回三楼卫生间外
+      // 记录"总闸已落下"，供三楼生化实验室红按钮判定使用
+      try{ sessionStorage.setItem('breakerOff','1'); }catch(e){}
+      openDialog(docs.master_off.title, docs.master_off.text);
+    }
+  }
+
+  if(tipTimer>0) tipTimer--;
+  if(tipTimer<=0) tipText='';
+  if(shake>0) shake--;
+}
+
+// ── Draw helpers ──
+function pxRect(x,y,w,h,c){
+  ctx.fillStyle=c;
+  ctx.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h));
+}
+function pxText(text,x,y,c,size,align){
+  ctx.fillStyle=c||P.TEXT;
+  ctx.font=(size||12)+'px "Courier New","SimSun",monospace';
+  ctx.textAlign=align||'left';
+  ctx.textBaseline='top';
+  ctx.fillText(text,x,y);
+}
+function drawBorder(x,y,w,h,c,t){
+  t=t||2;
+  pxRect(x,y,w,t,c); pxRect(x,y+h-t,w,t,c);
+  pxRect(x,y,t,h,c);   pxRect(x+w-t,y,t,h,c);
+}
+
+// ── 右上角时间 HUD ──
+function drawTimeHUD(){
+  if(typeof GameTime==='undefined') return;
+  var t=GameTime.label();
+  if(!t) return;
+  var txt='时间 '+t;
+  var pw=txt.length*8+16;
+  var px=W-pw-8, py=4;
+  pxRect(px,py,pw,18,'rgba(12,10,6,0.88)');
+  drawBorder(px,py,pw,18,'#b8902f');
+  pxText(txt,px+pw/2,py+5,'#ffe9a8',9,'center');
+}
+
+// Draw pixel character
+function drawPlayer(px,py){
+  var ox=Math.floor(px), oy=Math.floor(py);
+  var f=player.facing;
+  pxRect(ox+2,oy+16,10,2,'rgba(0,0,0,0.5)');
+  var legOff=player.frame*2;
+  if(f===0){
+    pxRect(ox+2,oy+11,3,5,P.PLAYER); pxRect(ox+7,oy+11,3,5,P.PLAYER);
+    if(player.frame===0){ pxRect(ox+2,oy+13+legOff,3,3,'#444'); pxRect(ox+7,oy+13-legOff,3,3,'#444'); }
+    else { pxRect(ox+2,oy+13-legOff,3,3,'#444'); pxRect(ox+7,oy+13+legOff,3,3,'#444'); }
+  }else if(f===1){
+    pxRect(ox+2,oy+11,3,5,P.PLAYER); pxRect(ox+7,oy+11,3,5,P.PLAYER);
+  }else{
+    pxRect(ox+2,oy+11,3,5,P.PLAYER); pxRect(ox+7,oy+11,3,5,P.PLAYER);
+    if(player.frame===0) pxRect(ox+2,oy+13+legOff,3,3,'#444');
+    else pxRect(ox+7,oy+13+legOff,3,3,'#444');
+  }
+  pxRect(ox+2,oy+6,8,7,'#777');
+  pxRect(ox+3,oy+6,6,7,P.PLAYER);
+  if(f===2) pxRect(ox,oy+7,3,4,P.PLAYER);
+  else if(f===3) pxRect(ox+9,oy+7,3,4,P.PLAYER);
+  else{ pxRect(ox,oy+7,3,4,P.PLAYER); pxRect(ox+9,oy+7,3,4,P.PLAYER); }
+  pxRect(ox+3,oy,6,7,P.PLAYER2);
+  pxRect(ox+4,oy+1,4,5,'#ddd');
+  if(f===0){ pxRect(ox+5,oy+3,1,1,'#222');pxRect(ox+8,oy+3,1,1,'#222'); }
+  else if(f===1){ pxRect(ox+5,oy+2,1,1,'#222');pxRect(ox+8,oy+2,1,1,'#222'); }
+  else if(f===2){ pxRect(ox+4,oy+3,1,1,'#222'); }
+  else{ pxRect(ox+9,oy+3,1,1,'#222'); }
+  pxRect(ox+3,oy,6,2,'#555');
+}
+
+// 画分闸（贴上方墙）
+function drawBreaker(b,highlight){
+  var x=b.x,y=b.y,w=b.w,h=b.h;
+  pxRect(x,y,w,h,P.BREAKER);
+  drawBorder(x,y,w,h,'#3a3a3a',1);
+  // 指示灯（lit 为实际发光状态，由跳闸序列控制）
+  var lit = b.lit;
+  pxRect(x+w/2-3, y+3, 6, 5, lit? P.GREEN : P.BREAKER_OFF);
+  // 扳手
+  pxRect(x+w/2-1, y+9, 2, 6, lit? '#9ad79a' : '#d79a9a');
+  if(highlight){
+    var t=Math.sin(Date.now()*0.005)*0.3+0.5;
+    drawBorder(x-3,y-3,w+6,h+6,'rgba(255,200,100,'+t+')',1);
+  }
+}
+
+// 画中央主控电闸
+function drawMaster(highlight){
+  var x=master.x,y=master.y,w=master.w,h=master.h;
+  pxRect(x,y,w,h,P.MASTER);
+  drawBorder(x,y,w,h,'#4a463e',2);
+  pxRect(x+4,y+3,w-8,8,'#1a1814'); // 顶盖
+  // 拉杆槽
+  pxRect(x+w/2-2, y+13, 4, h-22, '#0a0a0a');
+  // 拉杆头（通电=上，断电=下）
+  var leverY = powerOn ? y+13 : y+h-22;
+  pxRect(x+w/2-6, leverY, 12, 9, powerOn?'#b8902f':'#7a4a2a');
+  drawBorder(x+w/2-6, leverY, 12, 9, '#222',1);
+  // 标签
+  pxText('总闸', x+w/2, y-12, '#888', 8, 'center');
+  if(highlight){
+    var t=Math.sin(Date.now()*0.005)*0.3+0.5;
+    drawBorder(x-3,y-3,w+6,h+6,'rgba(255,200,100,'+t+')',1);
+  }
+}
+
+// ── Render ──
+function render(){
+  ctx.clearRect(0,0,W,H);
+  var sx=shake>0?(Math.random()-0.5)*shake:0;
+  var sy=shake>0?(Math.random()-0.5)*shake:0;
+  ctx.save();
+  ctx.translate(sx,sy);
+
+  // Floor
+  pxRect(B.L,B.T,B.R-B.L,B.B-B.T,P.FLOOR);
+
+  // Room label
+  pxText('配 电 隔 间', B.L+CW/2+1, B.T+CH/2-44+1, '#000', 13, 'center');
+  pxText('配 电 隔 间', B.L+CW/2,   B.T+CH/2-44,   '#666', 13, 'center');
+
+  // Walls
+  for(var i=0;i<walls.length;i++){
+    var w=walls[i];
+    pxRect(w.x,w.y,w.w,w.h,P.WALL3);
+  }
+  drawBorder(B.L,B.T,B.R-B.L,B.B-B.T,P.WALL3,4);
+
+  // Breakers on the single wall (top)
+  for(var i=0;i<breakers.length;i++){
+    var b=breakers[i];
+    var hl=interactionHint && interactionHint===b.zone;
+    drawBreaker(b,hl);
+  }
+
+  // Master switch (center)
+  var mhl=interactionHint && interactionHint===master.zone;
+  drawMaster(mhl);
+
+  // Player
+  drawPlayer(player.x,player.y);
+
+  // Interaction hint
+  if(interactionHint && !dialog){
+    var label = interactionHint.type==='master'
+      ? (powerOn?'拉下总闸':'合上总闸')
+      : ('分闸 '+(breakers[interactionHint.idx].index+1));
+    var hintY=player.y-14;
+    var tw=(label.length+4)*7;
+    pxRect(player.x+player.w/2-tw/2-4,hintY-2,tw+8,12,'rgba(0,0,0,0.8)');
+    pxText('[F] '+label,player.x+player.w/2,hintY,'#fff',8,'center');
+  }
+
+  ctx.restore();
+
+  // HUD bottom
+  pxRect(0,H-22,W,22,'rgba(0,0,0,0.7)');
+  pxText('WASD 移动   F 互动   ESC 关闭',10,H-16,P.HUD,9);
+  pxText(powerOn?'供电:正常':'供电:中断',W-90,H-16,powerOn?P.GREEN:P.RED,8,'right');
+
+  // Tip
+  if(tipText){
+    var tw2=tipText.length*7;
+    pxRect(W/2-tw2/2-6,4,tw2+12,16,'rgba(0,0,0,0.85)');
+    pxText(tipText,W/2,7,'#aaa',9,'center');
+  }
+
+  // Time HUD
+  drawTimeHUD();
+
+  // 环境黑暗：随分闸逐个熄灭逐渐加深（跳闸过程中渐暗，全灭后全黑）
+  var dark=0;
+  if(!powerOn){
+    dark=0.8;
+  }else if(tripping){
+    var offCount=breakers.length-tripQueue.length;
+    dark=(offCount/breakers.length)*0.78;
+  }
+  if(dark>0){
+    pxRect(0,0,W,H,'rgba(0,0,0,'+dark+')');
+    if(!powerOn){
+      // 电闸处留极微弱光晕，提示可找回开关
+      var gx=master.x+master.w/2, gy=master.y+master.h/2;
+      var grd=ctx.createRadialGradient(gx,gy,2,gx,gy,90);
+      grd.addColorStop(0,'rgba(40,30,10,0.2)');
+      grd.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=grd;
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  // Dialog（始终绘制在最上层，断电黑暗不会遮挡文字）
+  if(dialog){
+    pxRect(0,0,W,H,'rgba(0,0,0,0.7)');
+    var dw=480,dh=260;
+    var dx=(W-dw)/2, dy=(H-dh)/2;
+    pxRect(dx,dy,dw,dh,P.DIALOG_BG);
+    drawBorder(dx,dy,dw,dh,P.DIALOG_BORDER,3);
+    pxRect(dx,dy,dw,22,'#1a1a1a');
+    drawBorder(dx,dy,dw,22,P.DIALOG_BORDER,1);
+    pxText(dialog.title,dx+dw/2,dy+5,P.DIALOG_TITLE,11,'center');
+    var lines=dialog.text.split('\n');
+    for(var li=0;li<lines.length;li++){
+      pxText(lines[li],dx+16,dy+30+li*16,P.DIALOG_TEXT,11);
+    }
+    pxText('[F] / [ESC] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+  }
+}
+
+// ── Game Loop ──
+function gameLoop(){
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+// ── 脚步声系统 ──
+var Footsteps = {
+  audioCtx:null, isPlaying:false, lastStepTime:0, stepInterval:250,
+  init:function(){
+    try{ this.audioCtx=new(window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+  },
+  playStep:function(){
+    if(!this.audioCtx) this.init();
+    if(!this.audioCtx) return;
+    var now=Date.now();
+    if(now-this.lastStepTime<this.stepInterval) return;
+    this.lastStepTime=now;
+    try{
+      var c=this.audioCtx, duration=0.15;
+      var buffer=c.createBuffer(1,c.sampleRate*duration,c.sampleRate);
+      var data=buffer.getChannelData(0);
+      for(var i=0;i<data.length;i++){
+        var t=i/c.sampleRate, s=0;
+        if(t<0.01) s=(t/0.01)*Math.random()*0.4;
+        else if(t<0.05) s=Math.random()*0.5+0.3+Math.sin(t*400)*0.1;
+        else if(t<0.1){ var d=(t-0.05)/0.05; s=(1-d)*(Math.random()*0.3+0.15); }
+        else if(t<duration){ var f=(t-0.1)/(duration-0.1); s=(1-f)*Math.random()*0.08; }
+        data[i]=s*0.5;
+      }
+      var src=c.createBufferSource(); src.buffer=buffer;
+      var g=c.createGain(); g.gain.setValueAtTime(0.4,c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+duration);
+      src.connect(g); g.connect(c.destination); src.start(0);
+    }catch(e){}
+  },
+  start:function(){ if(!this.isPlaying){ this.isPlaying=true; if(!this.audioCtx&&typeof AudioContext!=='undefined') this.init(); } },
+  stop:function(){ this.isPlaying=false; this.lastStepTime=0; },
+  update:function(isMoving,wt){
+    if(isMoving){ this.start(); if(wt===0||wt%12===0) this.playStep(); }
+    else this.stop();
+  }
+};
+document.addEventListener('DOMContentLoaded',function(){
+  document.addEventListener('keydown',function(){ if(!Footsteps.audioCtx) Footsteps.init(); });
+});
+
+tip('WASD 移动，靠近电闸按 F 交互');
+gameLoop();
+})();
+</script>
+<script src="time.js"></script>
+<script src="bgm.js"></script>
+<script src="save.js"></script>
+</body>
+</html>

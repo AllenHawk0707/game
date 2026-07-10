@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星榆中学 2008 · 实验区走廊</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;margin:0 auto;background:#0a0a0a;filter:grayscale(1) contrast(1.1)}
+/* 黑影红框：HTML 元素，绕开 canvas 的 grayscale 滤镜以保持红色 */
+#chaser-frame{box-sizing:border-box;will-change:left,top,width,height,opacity,box-shadow}
+</style>
+</head>
+<body>
+<audio id="map7-bgm" src="map7.mp3" autoplay loop style="display:none"></audio>
+<canvas id="c"></canvas>
+<!-- 黑影红框：独立 HTML 元素，绕开 canvas 的 grayscale 滤镜 -->
+<div id="chaser-frame" style="position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:5;display:none"></div>
+<script>
+window.go = window.go || function(u){ location.href=u; };
+window.BGM = window.BGM || { tryPlaySwitchSound:function(){}, playStair:function(cb){cb&&cb();}, playComputer:function(){} };
+window.GameTime = window.GameTime || { label:function(){ return null; } };
+window.SaveSystem = window.SaveSystem || { recordEnding:function(){} };
+
+(function(){
+var C=document.getElementById('c');
+var ctx=C.getContext('2d');
+var W=960,H=540;
+C.width=W;C.height=H;
+
+var canvasScale=1;
+function resize(){
+  canvasScale=Math.min(window.innerWidth/W,window.innerHeight/H);
+  C.style.width=(W*canvasScale)+'px';
+  C.style.height=(H*canvasScale)+'px';
+}
+resize();window.addEventListener('resize',resize);
+
+var P={
+  BG:'#0a0a0a',
+  WALL:'#2a2a2a', WALL2:'#3a3a3a', WALL3:'#444',
+  FLOOR:'#15130f', CORR:'#1a1814', HALL:'#181818',
+  DARK:'#111', TEXT:'#777', HINT:'#8a7a5a',
+  RED:'#883333', GREEN:'#3a5a3a',
+  RUST:'#3a2a18', RUST2:'#4a3620',
+  TAPE:'#5a5a20', TAPE2:'#3a3a14',
+  BLOOD:'#3a1010', BLOOD2:'#521414',
+  CHALK:'#6a6a60',
+  DOOR:'#3a2a1a',
+  DUST:'rgba(200,200,210,0.06)',
+  HUD:'#555'
+};
+
+// 走廊尺寸：又长又窄
+var HALL_LEN = 4200;
+var HALL_TOP = 150;
+var HALL_BOT = 380;
+var HALL_LEFT = 60;
+var HALL_RIGHT = HALL_LEFT + HALL_LEN;
+
+// 墙
+var walls = [];
+walls.push({x:HALL_LEFT, y:HALL_TOP, w:HALL_LEN, h:4});
+walls.push({x:HALL_LEFT, y:HALL_BOT-4, w:HALL_LEN, h:4});
+walls.push({x:HALL_LEFT, y:HALL_TOP, w:4, h:HALL_BOT-HALL_TOP});
+walls.push({x:HALL_RIGHT-4, y:HALL_TOP, w:4, h:HALL_BOT-HALL_TOP});
+
+// 障碍物（沿走廊布置：书柜、实验器械等）
+// 走廊极窄（净宽 230px），障碍"交错排列"挡住直行路径
+// 玩家可用垂直空间：HALL_TOP+4 ~ HALL_BOT-4 - 18 = 148~212（高 64）
+// 中间过道被顶/底大件障碍压缩到 60~80px 宽
+function makeObstacles(){
+  var list = [];
+  // HALL_TOP=150, HALL_BOT=380
+  // HALL_TOP+4=154, HALL_BOT-4=376
+  // 玩家高 18, 顶部贴顶下沿, 底部贴底上沿 → 中间可用 154+18=172~358
+  // 但障碍紧贴顶/底布置后，净过道压缩到 ~80~120px
+
+  // ── 玩家起点附近（右端进入）──
+  list.push({x:HALL_RIGHT-180, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});  // 顶侧高柜（贴顶）
+  list.push({x:HALL_RIGHT-180, y:HALL_BOT-90,  w:30, h:50, kind:'barrel'});   // 底侧桶堆（贴底）
+  list.push({x:HALL_RIGHT-110, y:HALL_BOT-50,  w:38, h:50, kind:'desk'});     // 底侧翻倒课桌
+  // 中央横向阻断
+  list.push({x:HALL_RIGHT-240, y:HALL_TOP+4,   w:60, h:30, kind:'shelf'});    // 顶横置
+  list.push({x:HALL_RIGHT-290, y:HALL_BOT-30,  w:30, h:26, kind:'chair'});    // 底横置小件
+
+  // ── 段 1（HALL_RIGHT-200 ~ HALL_RIGHT-600）──
+  list.push({x:HALL_RIGHT-320, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-320, y:HALL_BOT-80,  w:44, h:50, kind:'freezer'});
+  list.push({x:HALL_RIGHT-400, y:HALL_TOP+90,  w:60, h:24, kind:'desk'});     // 中央横桌（更靠中）
+  list.push({x:HALL_RIGHT-380, y:HALL_BOT-30,  w:22, h:26, kind:'chair'});
+  list.push({x:HALL_RIGHT-420, y:HALL_TOP+40,  w:20, h:20, kind:'barrel'});
+
+  list.push({x:HALL_RIGHT-470, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-460, y:HALL_BOT-70,  w:30, h:50, kind:'barrel'});
+  list.push({x:HALL_RIGHT-540, y:HALL_TOP+90,  w:60, h:24, kind:'shelf'});
+  list.push({x:HALL_RIGHT-520, y:HALL_BOT-40,  w:24, h:36, kind:'chair'});
+
+  // ── 段 2（600~1100）──
+  list.push({x:HALL_RIGHT-640, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-630, y:HALL_BOT-80,  w:44, h:50, kind:'freezer'});
+  list.push({x:HALL_RIGHT-720, y:HALL_TOP+4,   w:80, h:30, kind:'desk'});     // 顶横置
+  list.push({x:HALL_RIGHT-800, y:HALL_BOT-30,  w:80, h:26, kind:'shelf'});    // 底横置
+  list.push({x:HALL_RIGHT-700, y:HALL_BOT-30,  w:22, h:26, kind:'chair'});
+  list.push({x:HALL_RIGHT-820, y:HALL_TOP+38,  w:20, h:20, kind:'barrel'});
+  list.push({x:HALL_RIGHT-880, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-880, y:HALL_BOT-70,  w:44, h:50, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-960, y:HALL_TOP+4,   w:60, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-940, y:HALL_BOT-32,  w:24, h:28, kind:'chair'});
+  list.push({x:HALL_RIGHT-1010, y:HALL_BOT-60,  w:30, h:50, kind:'barrel'});
+
+  // ── 段 3（1100~1700）──
+  list.push({x:HALL_RIGHT-1060, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-1060, y:HALL_BOT-80,  w:44, h:50, kind:'freezer'});
+  list.push({x:HALL_RIGHT-1150, y:HALL_TOP+4,   w:80, h:30, kind:'shelf'});
+  list.push({x:HALL_RIGHT-1230, y:HALL_BOT-30,  w:60, h:26, kind:'desk'});
+  list.push({x:HALL_RIGHT-1130, y:HALL_BOT-32,  w:22, h:28, kind:'chair'});
+  list.push({x:HALL_RIGHT-1250, y:HALL_TOP+36,  w:20, h:20, kind:'barrel'});
+  list.push({x:HALL_RIGHT-1310, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-1310, y:HALL_BOT-70,  w:44, h:50, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-1400, y:HALL_TOP+4,   w:70, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-1480, y:HALL_BOT-30,  w:60, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-1380, y:HALL_BOT-30,  w:22, h:26, kind:'chair'});
+  list.push({x:HALL_RIGHT-1500, y:HALL_TOP+38,  w:20, h:20, kind:'barrel'});
+  list.push({x:HALL_RIGHT-1570, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-1570, y:HALL_BOT-80,  w:30, h:50, kind:'barrel'});
+  list.push({x:HALL_RIGHT-1640, y:HALL_BOT-32,  w:24, h:28, kind:'chair'});
+
+  // ── 段 4（1700~2400）──
+  list.push({x:HALL_RIGHT-1660, y:HALL_TOP+4,   w:80, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-1750, y:HALL_BOT-30,  w:80, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-1830, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-1830, y:HALL_BOT-70,  w:44, h:50, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-1920, y:HALL_TOP+4,   w:70, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-2010, y:HALL_BOT-30,  w:60, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-1810, y:HALL_BOT-32,  w:22, h:28, kind:'chair'});
+  list.push({x:HALL_RIGHT-1940, y:HALL_TOP+36,  w:20, h:20, kind:'barrel'});
+  list.push({x:HALL_RIGHT-2090, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-2090, y:HALL_BOT-80,  w:44, h:50, kind:'freezer'});
+  list.push({x:HALL_RIGHT-2180, y:HALL_TOP+4,   w:80, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-2270, y:HALL_BOT-30,  w:60, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-2160, y:HALL_BOT-30,  w:22, h:26, kind:'chair'});
+  list.push({x:HALL_RIGHT-2280, y:HALL_TOP+38,  w:20, h:20, kind:'barrel'});
+  list.push({x:HALL_RIGHT-2350, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-2350, y:HALL_BOT-70,  w:44, h:50, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-2330, y:HALL_BOT-32,  w:24, h:28, kind:'chair'});
+
+  // ── 段 5（2400~3100）──
+  list.push({x:HALL_RIGHT-2440, y:HALL_TOP+4,   w:80, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-2530, y:HALL_BOT-30,  w:80, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-2610, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-2610, y:HALL_BOT-80,  w:30, h:50, kind:'barrel'});
+  list.push({x:HALL_RIGHT-2700, y:HALL_TOP+4,   w:70, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-2790, y:HALL_BOT-30,  w:60, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-2870, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-2870, y:HALL_BOT-70,  w:44, h:50, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-2960, y:HALL_TOP+4,   w:80, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-3050, y:HALL_BOT-30,  w:60, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-3130, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-3130, y:HALL_BOT-80,  w:44, h:50, kind:'freezer'});
+  list.push({x:HALL_RIGHT-2680, y:HALL_BOT-32,  w:22, h:28, kind:'chair'});
+  list.push({x:HALL_RIGHT-2810, y:HALL_TOP+38,  w:20, h:20, kind:'barrel'});
+  list.push({x:HALL_RIGHT-2940, y:HALL_BOT-30,  w:22, h:26, kind:'chair'});
+  list.push({x:HALL_RIGHT-3070, y:HALL_TOP+36,  w:20, h:20, kind:'barrel'});
+
+  // ── 段 6（3100~3700）──
+  list.push({x:HALL_RIGHT-3220, y:HALL_TOP+4,   w:80, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-3310, y:HALL_BOT-30,  w:80, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-3390, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-3390, y:HALL_BOT-70,  w:44, h:50, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-3480, y:HALL_TOP+4,   w:70, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-3570, y:HALL_BOT-30,  w:60, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-3650, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-3650, y:HALL_BOT-80,  w:30, h:50, kind:'barrel'});
+  list.push({x:HALL_RIGHT-3740, y:HALL_TOP+4,   w:80, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-3270, y:HALL_BOT-32,  w:22, h:28, kind:'chair'});
+  list.push({x:HALL_RIGHT-3400, y:HALL_TOP+38,  w:20, h:20, kind:'barrel'});
+  list.push({x:HALL_RIGHT-3530, y:HALL_BOT-30,  w:22, h:26, kind:'chair'});
+  list.push({x:HALL_RIGHT-3660, y:HALL_TOP+36,  w:20, h:20, kind:'barrel'});
+
+  // ═══ 段 1~6 区间：在顶/底柜空隙中再塞 14×14 小件（增加密度）═══
+  // 范围 HALL_LEFT+250(310) ~ HALL_RIGHT-3220(1040) + 段 7 之后范围也覆盖
+  // 用固定步进：每 50px 一个顶侧小件
+  // （补丁小件已废弃 —— 由 makeMidBlocks 中的"非规则封顶/封底"代替）
+  // 顶/底缝漂浮小障碍也废弃
+
+  // ── 段 7（3700~HALL_LEFT+250）──
+  list.push({x:HALL_RIGHT-3830, y:HALL_BOT-30,  w:80, h:26, kind:'shelf'});
+  list.push({x:HALL_RIGHT-3910, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-3910, y:HALL_BOT-70,  w:44, h:50, kind:'cabinet'});
+  list.push({x:HALL_RIGHT-4000, y:HALL_TOP+4,   w:80, h:30, kind:'desk'});
+  list.push({x:HALL_RIGHT-3820, y:HALL_BOT-32,  w:22, h:28, kind:'chair'});
+  list.push({x:HALL_RIGHT-3940, y:HALL_TOP+38,  w:20, h:20, kind:'barrel'});
+  list.push({x:HALL_RIGHT-4070, y:HALL_BOT-30,  w:30, h:26, kind:'shelf'});
+
+  // ═══ 额外补丁小障碍（在原顶/底柜之间的空隙中插入）═══
+  // 顶柜/底柜多在 HALL_RIGHT-4070 之前的 x 范围
+  // HALL_LEFT+250 ~ HALL_RIGHT-4070 = 310 ~ 190，每 ~60px 一对小件
+  // 小件：顶侧 18×12（椅/小桌/桶），底侧 18×12
+  // 用伪随机确定性位置（按固定步进 + 奇偶交替左右）
+  var PATCH_X_START = HALL_LEFT+250;
+  var PATCH_X_END = HALL_RIGHT-4070;
+  // （旧的"补丁小件"循环已废弃 —— 改为"非规则封顶/封底"逻辑，见 makeMidBlocks 中的封堵段）
+
+  // 走廊左端（尽头门附近）障碍
+  list.push({x:HALL_LEFT+30,  y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_LEFT+30,  y:HALL_BOT-80,  w:30, h:50, kind:'barrel'});
+  list.push({x:HALL_LEFT+120, y:HALL_TOP+4,   w:60, h:30, kind:'shelf'});
+  list.push({x:HALL_LEFT+120, y:HALL_BOT-30,  w:60, h:26, kind:'desk'});
+  list.push({x:HALL_LEFT+220, y:HALL_TOP+4,   w:44, h:40, kind:'cabinet'});
+  list.push({x:HALL_LEFT+220, y:HALL_BOT-70,  w:44, h:50, kind:'cabinet'});
+  list.push({x:HALL_LEFT+90,  y:HALL_BOT-32,  w:22, h:28, kind:'chair'});
+  list.push({x:HALL_LEFT+200, y:HALL_TOP+38,  w:20, h:20, kind:'barrel'});
+
+  // ════════════════════════════════════════════════════════════════
+  // 中央阻带 v9t：一上一下交替 + 与顶/底柜相连 + 后面极限
+  // ── 设计目标：一上一下障碍与顶柜/底柜接成一体(垂柱/竖柱), 玩家上下穿梭 ──
+  //   步进 100→80 渐变 (t=segIdx/(N-1), 右端100 左端80)
+  //   A 段(偶): 段内柱从顶柜垂下 y=214 h=46 (214~260) 连顶柜底
+  //   B 段(奇): 段内柱从底柜竖起 y=270 h=54 (270~324) 连底柜顶
+  //   → 上柱连顶 / 下柱连底, 一上一下交替, 玩家上下穿梭
+  //   后面段(t>0.55): 再加对侧柱封中段, 且与顶/底柜相接 (极限)
+  //     A 段加底柱 y=296 h=28 (296~324 连底) / B 段加顶柱 y=214 h=28 (214~242 连顶)
+  //   段间挡 A: y=160~200 封顶 / B: y=300~340 封底, 紧接顶/底柜
+  //   固定种子 20260709, 每次刷新布局一致; 列扫描验证 43 段全程连通
+  // ════════════════════════════════════════════════════════════════
+  function makeMidBlocks(){
+    var list = [];
+    var seed = 20260709;
+    function rnd(){
+      var t = (seed = (seed + 0x6D2B79F5) | 0);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+    function ri(lo, hi){ return lo + Math.floor(rnd() * (hi - lo + 1)); }
+    var SEG_W = 60;
+    // 先估总段数 (平均步进90)
+    var testN = 0, testX = HALL_RIGHT - 180;
+    while(testX > HALL_LEFT + 150){ testN++; testX -= 90; }
+    var segIdx = 0, curX = HALL_RIGHT - 180;
+    while(curX > HALL_LEFT + 150){
+      var t = segIdx / Math.max(1, testN - 1);
+      var STEP = Math.round(100 - 20 * t);   // 100 → 80 渐变
+      var x = curX;
+      // 顶柜 y=154 h=60 (154~214)  底柜 y=324 h=38 (324~362)
+      list.push({x:x, y:154, w:SEG_W, h:60, kind:'cabinet'});
+      list.push({x:x, y:324, w:SEG_W, h:38, kind:'cabinet'});
+      if(segIdx % 2 === 0){
+        // A 段: 段内柱从顶柜垂下 (214~260) 连顶柜底 → 与顶柜成一体
+        var oxA = 6 + ri(0, 28);
+        list.push({x:x+oxA, y:214, w:12, h:46, kind:'block'});
+        // 后面段: 加底柱连底柜顶 (296~324) 封中段 → 顶/底柜都接上
+        if(t > 0.55){
+          var oxA2 = 6 + ri(0, 28);
+          list.push({x:x+oxA2, y:296, w:12, h:28, kind:'block'});
+        }
+      } else {
+        // B 段: 段内柱从底柜竖起 (270~324) 连底柜顶 → 与底柜成一体
+        var oxB = 6 + ri(0, 28);
+        list.push({x:x+oxB, y:270, w:12, h:54, kind:'block'});
+        // 后面段: 加顶柱连顶柜底 (214~242) 封中段
+        if(t > 0.55){
+          var oxB2 = 6 + ri(0, 28);
+          list.push({x:x+oxB2, y:214, w:12, h:28, kind:'block'});
+        }
+      }
+      // 段间挡 A 封顶(160~200) / B 封底(300~340)
+      if(segIdx % 2 === 0){
+        var ysA = 160 + ri(0, 3), hsA = 40 + ri(0, 3);
+        list.push({x:x+SEG_W+3, y:ysA, w:8, h:hsA, kind:'block'});
+      } else {
+        var ysB = 300 + ri(0, 3), hsB = 40 + ri(0, 3);
+        list.push({x:x+SEG_W+3, y:ysB, w:8, h:hsB, kind:'block'});
+      }
+      segIdx++;
+      curX -= STEP;
+    }
+    return list;
+  }
+  // 把中央阻带并入总障碍
+  var midBlocks = makeMidBlocks();
+  for(var mi=0; mi<midBlocks.length; mi++){
+    list.push(midBlocks[mi]);
+  }
+
+  return list;
+}
+var obstacles = makeObstacles();
+for(var oi=0;oi<obstacles.length;oi++){ walls.push({x:obstacles[oi].x,y:obstacles[oi].y,w:obstacles[oi].w,h:obstacles[oi].h, isObs:true}); }
+
+// 尽头门（视觉装饰，不交互）
+var endDoor = {x: HALL_LEFT+10, y: HALL_TOP+30, w: 70, h: HALL_BOT-HALL_TOP-50};
+
+// ── 玩家：从 map6 小门走出后出现在走廊右端，向左前进 ──
+var player = {
+  x: HALL_RIGHT-80, y: HALL_TOP+50, w:12, h:18, vx:0, vy:0, speed:1.8,
+  facing:2, frame:0, walkTimer:0
+};
+window.__xyzh_player = player;
+
+// ── 追逐黑影（A* 寻路，从 map6 跨页面追入）──
+var chaser=null;
+var chaserDelay=0;
+var chaserSpawnPending=0;   // 延迟生成鬼影的倒计时帧数（30 帧 = 0.5 秒）
+var redFlashOn=false;
+var CHASE_CHASER_RATIO=0.8;
+var CELL_SIZE=20;
+var PATH_RECALC=12;
+var chaserPath=[];
+var pathRecalcCounter=0;
+var cachedGrid=null;
+var caughtDeath=false;
+var caughtDeathStart=0;
+var playerDead=false;
+function saveChaserRel(){
+  if(!chaser) return;
+  try{ sessionStorage.setItem('chaserRel', JSON.stringify({dx:chaser.x-player.x, dy:chaser.y-player.y})); }catch(e){}
+}
+
+// ── 陈宇：复刻主角 0.5 秒前的路径（30 帧轨迹回放）──
+// 渲染优先级低于主角（主角在陈宇之上绘制）
+// 从 map6 sessionStorage 读取：进 map7 时陈宇就在玩家身后
+// 默认 active=true：单独打开 map7.html 测试时陈宇也会跟着，方便检验
+var CHENYU_DELAY_FRAMES = 12;   // 0.2 秒 @ 60fps
+var playerTrail = [];           // 主角最近 N 帧 (x,y,facing,frame) 环形缓冲
+var chenYu = {
+  active: true,         // 默认激活，跟随玩家（单测/从 map6 进都会跟随）
+  x: player.x + 18, y: player.y,
+  facing: 2, frame: 0,
+  bob: 0
+};
+(function(){
+  try{
+    var r = JSON.parse(sessionStorage.getItem('xyzh_resume')||'null');
+    if(r && r.map==='map7.html'){ player.x = r.x; player.y = r.y; sessionStorage.removeItem('xyzh_resume'); }
+    // 读取陈宇状态（从 map6 跳转过来）
+    var c = JSON.parse(sessionStorage.getItem('xyzh_chenyu')||'null');
+    if(c && c.active){
+      chenYu.active = true;
+      chenYu.x = (typeof c.x === 'number') ? c.x : player.x + 18;
+      chenYu.y = (typeof c.y === 'number') ? c.y : player.y;
+    }
+    // 读取追逐状态（从 map6 传入）
+    if(sessionStorage.getItem('chaseOn')==='1'){
+      // 不立刻生成 chaser：先让玩家跑 0.5 秒（30 帧 @ 60fps），
+      // 之后在玩家当前位置"原地生成"黑影。期间 chaser=null，画面上无鬼影。
+      redFlashOn = true;
+      chaser = null;
+      chaserDelay = 0;
+      chaserSpawnPending = 30; // 0.5 秒后生成
+      cachedGrid = null;
+      // BGM 追逐也延迟 0.5 秒后启动（与鬼影同时）
+      if(typeof BGM!=='undefined' && BGM.startChase){
+        setTimeout(function(){ BGM.startChase(); }, 500);
+      }
+      // chaserRel 不再使用（鬼影改为在玩家当前位置生成）
+      try{ sessionStorage.removeItem('chaserRel'); }catch(e){}
+    }
+    // 微调 Chen Yu：避免重叠/卡墙
+    var tries = 0;
+    while(collides(chenYu.x, chenYu.y, 12, 18) && tries < 20){
+      chenYu.x -= 1;
+      tries++;
+    }
+  }catch(e){}
+})();
+
+// 相机
+var CAM_ZOOM = 2.5;
+var camera = null;
+function updateCamera(){
+  if(!camera){ camera={x:player.x+player.w/2, y:player.y+player.h/2}; return; }
+  var tx = player.x+player.w/2, ty = player.y+player.h/2;
+  var vw = W/CAM_ZOOM, vh = H/CAM_ZOOM;
+  tx = Math.max(HALL_LEFT+vw/2, Math.min(HALL_RIGHT-vw/2, tx));
+  ty = Math.max(HALL_TOP+vh/2, Math.min(HALL_BOT-vh/2, ty));
+  camera.x = tx; camera.y = ty;
+}
+
+var keys = {};
+var tipText = '', tipTimer = 0;
+var screenShake = 0;
+var lampT = 0;       // 灯闪烁相位
+var lampOnIdx = 0;   // 当前亮着的灯
+
+function tip(msg){ tipText = msg; tipTimer = 180; }
+
+// ── 交互区（左端尽头 → map8）──
+var interactZones = [
+  {x: HALL_LEFT+4, y: HALL_TOP+60, w: 36, h: 80, id: 'map8_door', label: '进入深处'}
+];
+
+function handleInteraction(hint){
+  if(hint.id === 'map8_door'){
+    go('map8.html');
+  }
+}
+
+var interactionHint = null;
+
+window.addEventListener('keydown', function(e){
+  keys[e.key.toLowerCase()] = true;
+  if(e.key==='Escape'){ try{ history.length>1 ? history.back() : go('map6.html'); }catch(_e){ go('map6.html'); } }
+  if(e.key==='f'||e.key==='F'){ if(interactionHint){ handleInteraction(interactionHint); } }
+  if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].indexOf(e.key)!==-1) e.preventDefault();
+});
+window.addEventListener('keyup', function(e){ keys[e.key.toLowerCase()] = false; });
+
+function collides(rx,ry,rw,rh){
+  for(var i=0;i<walls.length;i++){
+    var w=walls[i];
+    if(rx<w.x+w.w && rx+rw>w.x && ry<w.y+w.h && ry+rh>w.y) return true;
+  }
+  if(rx<HALL_LEFT || rx+rw>HALL_RIGHT) return true;
+  if(ry<HALL_TOP || ry+rh>HALL_BOT) return true;
+  return false;
+}
+
+function pxRect(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
+function pxText(text,x,y,c,size,align){
+  ctx.fillStyle=c||P.TEXT;
+  ctx.font=(size||12)+'px "Courier New","SimSun",monospace';
+  ctx.textAlign=align||'left'; ctx.textBaseline='top';
+  ctx.fillText(text,x,y);
+}
+function drawBorder(x,y,w,h,c,t){
+  t=t||2; pxRect(x,y,w,t,c); pxRect(x,y+h-t,w,t,c); pxRect(x,y,t,h,c); pxRect(x+w-t,y,t,h,c);
+}
+
+function dCabinet(x,y){
+  pxRect(x,y,42,58,P.RUST); drawBorder(x,y,42,58,'#1a140a',2);
+  pxRect(x+5,y+8,32,18,'#241a0e'); pxRect(x+5,y+30,32,18,'#241a0e');
+  pxRect(x+18,y+14,4,6,'#555');
+  pxText('书',x+19,y+10,'#aa8',8,'center');
+  pxRect(x+2,y+20,2,14,'rgba(120,60,20,0.5)');
+}
+function dShelf(x,y){
+  pxRect(x,y,46,42,'#3a2e1e'); drawBorder(x,y,46,42,'#1a140a',2);
+  pxRect(x+3,y+6,40,3,'#5a4a30'); pxRect(x+3,y+20,40,3,'#5a4a30');
+  pxRect(x+6,y-4,8,10,'#4a3620'); pxRect(x+18,y-2,10,8,'#4a3620');
+  pxRect(x+4,y+9,6,11,'#2a1a10'); pxRect(x+22,y+9,8,11,'#2a1a10');
+  pxRect(x+6,y+23,10,18,'#3a2a18');
+}
+// 中央阻带窄挡块: 按实际碰撞尺寸绘制 (8~12 宽 × 30~54 高)
+// 风格与 dShelf 一致 (深棕木板 + 边框 + 顶/底横条), 贴图=实体, 不溢出碰撞框
+// 上面覆盖警示胶带(黄黑斜纹) + 钉孔 + 木纹 + 危险红点 → 不再是单调灰方块
+function dBlock(x,y,w,h){
+  // 1) 木板底色 + 边框
+  pxRect(x,y,w,h,'#3a2a18');
+  drawBorder(x,y,w,h,'#1a140a',1);
+  // 2) 顶/底横木条（板缝）
+  if(h >= 14){
+    pxRect(x+1,y+2,w-2,2,'#5a4a30');
+    pxRect(x+1,y+h-4,w-2,2,'#5a4a30');
+  }
+  // 3) 竖木纹（居中一条深线）
+  if(h >= 20 && w >= 8){
+    pxRect(x+Math.floor(w/2),y+5,1,h-10,'#2a1a10');
+    // 边缘浅竖线（更显木板拼接感）
+    if(w >= 10){
+      pxRect(x+2,y+5,1,h-10,'rgba(90,74,48,0.6)');
+      pxRect(x+w-3,y+5,1,h-10,'rgba(90,74,48,0.6)');
+    }
+  }
+  // 4) 横向警示胶带（黄底 + 黑斜条）—— 最显眼的图案
+  if(h >= 18 && w >= 6){
+    var ty = y + Math.floor((h-3)/2) - 1;
+    pxRect(x+1, ty, w-2, 3, '#a89020');       // 黄底
+    for(var i=0; i<w-2; i+=3){
+      pxRect(x+1+i, ty, 1, 3, '#1a1a0a');     // 黑斜条
+    }
+  }
+  // 5) 钉孔（4 角亮灰小点）
+  if(w >= 6 && h >= 14){
+    pxRect(x+1, y+1, 1, 1, '#999');
+    pxRect(x+w-2, y+1, 1, 1, '#999');
+    pxRect(x+1, y+h-2, 1, 1, '#999');
+    pxRect(x+w-2, y+h-2, 1, 1, '#999');
+  }
+  // 6) 危险红点（h >= 28 时左右顶部各一个）
+  if(h >= 28 && w >= 8){
+    pxRect(x+2, y+4, 2, 2, '#a83820');
+    pxRect(x+w-4, y+4, 2, 2, '#a83820');
+  }
+}
+function dToppledDesk(x,y){
+  pxRect(x,y,22,6,'#2a2418'); pxRect(x+2,y+6,18,3,'#221d12');
+  pxRect(x+2,y+9,4,8,'#1c1810'); pxRect(x+16,y+9,4,8,'#1c1810');
+}
+function dFreezer(x,y){
+  pxRect(x,y,44,60,'#2f3a3a'); drawBorder(x,y,44,60,'#1a2424',2);
+  pxRect(x+5,y+6,34,30,'#1c2626');
+  pxRect(x+5,y+40,34,15,'#1c2626');
+  pxRect(x+26,y+14,3,14,'#5a6a6a');
+  pxRect(x+26,y+45,3,9,'#5a6a6a');
+  pxRect(x+7,y+8,10,6,'rgba(120,200,210,0.25)');
+  pxText('-20℃',x+22,y+30,'#7fa',7,'center');
+}
+function dBarrel(x,y){
+  pxRect(x,y,26,30,'#2a2a30'); drawBorder(x,y,26,30,'#111',2);
+  pxRect(x+2,y+10,22,18,'rgba(80,140,90,0.30)');
+  pxRect(x+8,y+2,10,4,'#1a1a1a');
+  pxText('▲',x+13,y+6,'#caa',8,'center');
+}
+function dBrokenChair(x,y){
+  pxRect(x,y,22,6,'#4a3620'); drawBorder(x,y,22,6,'#2a1e10',1);
+  pxRect(x+2,y+6,3,12,'#3a2a18');
+  pxRect(x+18,y+6,3,7,'#3a2a18');
+}
+// 墙皮告示牌（黄底 + 黑色警示斜条 + 文字）
+function dSign(x,y,w,h){
+  pxRect(x,y,w,h,'#a89020');
+  drawBorder(x,y,w,h,'#1a140a',1);
+  // 黑色斜条
+  for(var i=-h; i<w+h; i+=8){
+    if(i>0 && i<w) pxRect(x+i, y, 2, h, '#1a1a0a');
+  }
+  // 文字（按 h 自适应）
+  var t = h >= 30 ? '危险' : (h >= 20 ? '禁' : '!');
+  pxText(t, x+w/2, y + Math.max(0, (h-7)/2|0), '#1a1a0a', 7, 'center');
+}
+function dStain(x,y){
+  pxRect(x,y,14,8,P.BLOOD); pxRect(x+3,y+8,8,4,P.BLOOD2); pxRect(x+8,y-2,5,4,P.BLOOD);
+}
+
+// 走廊吊灯（间歇闪烁：每隔几秒闪一下）
+function dCeilingLamp(x,y,on,flicker){
+  pxRect(x+10,y,2,8,'#222');
+  pxRect(x,y+8,22,6,'#2a2a2a');
+  if(on){
+    var r = flicker ? 40 : 90;
+    var alpha = flicker ? 0.18 : 0.45;
+    var grad = ctx.createRadialGradient(x+11, y+18, 0, x+11, y+18, r);
+    grad.addColorStop(0, 'rgba(255,235,170,'+alpha+')');
+    grad.addColorStop(0.5, 'rgba(255,210,120,'+(alpha*0.4)+')');
+    grad.addColorStop(1, 'rgba(255,210,120,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x+11, y+18, r, 0, Math.PI*2);
+    ctx.fill();
+    pxRect(x+3,y+9,16,3,'rgba(255,235,170,'+(flicker?0.5:0.85)+')');
+  }else{
+    pxRect(x+3,y+9,16,3,'#1a1a1a');
+  }
+}
+
+// 尽头门：双扇不锈钢门，警示胶带（不交互）
+function dEndDoor(x,y,w,h){
+  pxRect(x-8, y-8, w+16, h+16, '#1a140a');
+  drawBorder(x-8, y-8, w+16, h+16, '#5a4a30', 2);
+  var halfW = w/2;
+  pxRect(x, y, halfW, h, P.DOOR);
+  pxRect(x+halfW, y, halfW, h, P.DOOR);
+  drawBorder(x, y, halfW, h, '#1a0e05', 2);
+  drawBorder(x+halfW, y, halfW, h, '#1a0e05', 2);
+  // 接缝
+  pxRect(x+halfW-1, y, 2, h, '#0a0604');
+  // 把手
+  pxRect(x+halfW-6, y+h/2-3, 4, 6, '#8a7a4a');
+  pxRect(x+halfW+2, y+h/2-3, 4, 6, '#8a7a4a');
+  // 警示胶带（横向贴在门中下）
+  for(var i=0;i<w;i+=8){
+    pxRect(x+i, y+h-26, 4, 4, P.TAPE);
+    pxRect(x+i+4, y+h-26, 4, 4, P.TAPE2);
+  }
+  // 标牌
+  pxText('禁  止  进  入', x+w/2, y+22, '#caa', 9, 'center');
+  pxText('（门已锁死）', x+w/2, y+h-44, '#888', 7, 'center');
+  // 边角阴影（让门更深）
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(x, y, w, 6);
+  ctx.fillRect(x, y+h-6, w, 6);
+}
+
+function drawPlayer(px,py){
+  var ox=Math.floor(px), oy=Math.floor(py);
+  var pw=12,ph=18, f=player.facing;
+  pxRect(ox+2,oy+ph-2,10,2,'rgba(0,0,0,0.5)');
+  var legOff=player.frame*2;
+  if(f===0){
+    pxRect(ox+2,oy+11,3,5,P.TEXT); pxRect(ox+7,oy+11,3,5,P.TEXT);
+    if(player.frame===0){ pxRect(ox+2,oy+13+legOff,3,3,'#444'); pxRect(ox+7,oy+13-legOff,3,3,'#444'); }
+    else { pxRect(ox+2,oy+13-legOff,3,3,'#444'); pxRect(ox+7,oy+13+legOff,3,3,'#444'); }
+  }else if(f===1){ pxRect(ox+2,oy+11,3,5,P.TEXT); pxRect(ox+7,oy+11,3,5,P.TEXT); }
+  else { pxRect(ox+2,oy+11,3,5,P.TEXT); pxRect(ox+7,oy+11,3,5,P.TEXT);
+    if(player.frame===0) pxRect(ox+2,oy+13+legOff,3,3,'#444'); else pxRect(ox+7,oy+13+legOff,3,3,'#444'); }
+  pxRect(ox+2,oy+6,8,7,'#777'); pxRect(ox+3,oy+6,6,7,'#aaa');
+  if(f===2){ pxRect(ox,oy+7,3,4,'#aaa'); } else if(f===3){ pxRect(ox+9,oy+7,3,4,'#aaa'); }
+  else{ pxRect(ox,oy+7,3,4,'#aaa'); pxRect(ox+9,oy+7,3,4,'#aaa'); }
+  pxRect(ox+3,oy,6,7,'#bbb'); pxRect(ox+4,oy+1,4,5,'#ddd');
+  if(f===0){ pxRect(ox+5,oy+3,1,1,'#222');pxRect(ox+8,oy+3,1,1,'#222'); }
+  else if(f===1){ pxRect(ox+5,oy+2,1,1,'#222');pxRect(ox+8,oy+2,1,1,'#222'); }
+  else if(f===2){ pxRect(ox+4,oy+3,1,1,'#222'); }
+  else{ pxRect(ox+9,oy+3,1,1,'#222'); }
+  pxRect(ox+3,oy,6,2,'#555');
+}
+
+// 灰尘粒子
+var dusts = [];
+for(var i=0;i<60;i++){
+  dusts.push({
+    x: HALL_LEFT + Math.random()*HALL_LEN,
+    y: HALL_TOP + 30 + Math.random()*(HALL_BOT-HALL_TOP-50),
+    vy: -0.05 - Math.random()*0.15,
+    size: 1 + Math.random()*1.5,
+    a: 0.10 + Math.random()*0.20
+  });
+}
+
+// 吊灯位置（沿走廊每 180px 一盏）
+var lampPositions = [];
+for(var lx = HALL_LEFT+120; lx < HALL_RIGHT-100; lx += 180){
+  lampPositions.push(lx);
+}
+
+// ── 黑影追逐（A* 寻路，自动绕过障碍物）──
+function buildGrid(){
+  var gw=Math.ceil((HALL_RIGHT-HALL_LEFT)/CELL_SIZE);
+  var gh=Math.ceil((HALL_BOT-HALL_TOP)/CELL_SIZE);
+  var g=[];
+  for(var gx=0;gx<gw;gx++){
+    g[gx]=[];
+    for(var gy=0;gy<gh;gy++){
+      var cx=HALL_LEFT+gx*CELL_SIZE, cy=HALL_TOP+gy*CELL_SIZE;
+      var blocked=false;
+      for(var i=0;i<walls.length;i++){
+        var w=walls[i];
+        if(cx<w.x+w.w && cx+CELL_SIZE>w.x && cy<w.y+w.h && cy+CELL_SIZE>w.y){
+          blocked=true; break;
+        }
+      }
+      if(cx<HALL_LEFT+4 || cx+CELL_SIZE>HALL_RIGHT-4 || cy<HALL_TOP+4 || cy+CELL_SIZE>HALL_BOT-4) blocked=true;
+      g[gx][gy]=blocked?1:0;
+    }
+  }
+  return g;
+}
+function getGrid(){ if(!cachedGrid) cachedGrid=buildGrid(); return cachedGrid; }
+function wToGrid(wx,wy){
+  return {x:Math.floor((wx-HALL_LEFT)/CELL_SIZE), y:Math.floor((wy-HALL_TOP)/CELL_SIZE)};
+}
+function gToWorld(gx,gy){
+  return {x:HALL_LEFT+gx*CELL_SIZE+CELL_SIZE/2, y:HALL_TOP+gy*CELL_SIZE+CELL_SIZE/2};
+}
+function heuristic(x1,y1,x2,y2){ return Math.abs(x1-x2)+Math.abs(y1-y2); }
+function findPath7(fromWX,fromWY,toWX,toWY){
+  var grid=getGrid();
+  var gw=grid.length, gh=grid[0].length;
+  var s=wToGrid(fromWX,fromWY);
+  var g=wToGrid(toWX,toWY);
+  s.x=Math.max(0,Math.min(gw-1,s.x)); s.y=Math.max(0,Math.min(gh-1,s.y));
+  g.x=Math.max(0,Math.min(gw-1,g.x)); g.y=Math.max(0,Math.min(gh-1,g.y));
+  if(s.x===g.x&&s.y===g.y) return null;
+  if(grid[s.x][s.y]===1||grid[g.x][g.y]===1) return null;
+  var open=[], closed={};
+  var sn={x:s.x,y:s.y,g:0,h:heuristic(s.x,s.y,g.x,g.y),parent:null}; sn.f=sn.g+sn.h;
+  open.push(sn);
+  var dirs=[[0,-1],[0,1],[-1,0],[1,0]];
+  var limit=800;
+  while(open.length>0 && limit-- > 0){
+    var best=0;
+    for(var i=1;i<open.length;i++){ if(open[i].f<open[best].f) best=i; }
+    var cur=open[best];
+    if(cur.x===g.x&&cur.y===g.y){
+      var path=[], node=cur;
+      while(node){ path.unshift(gToWorld(node.x,node.y)); node=node.parent; }
+      if(path.length>1) path.shift();
+      return path;
+    }
+    open.splice(best,1); closed[cur.x+','+cur.y]=true;
+    for(var d=0;d<dirs.length;d++){
+      var nx=cur.x+dirs[d][0], ny=cur.y+dirs[d][1];
+      if(nx<0||nx>=gw||ny<0||ny>=gh) continue;
+      if(grid[nx][ny]===1) continue;
+      var nk=nx+','+ny; if(closed[nk]) continue;
+      var inOpen=false;
+      for(var oi=0;oi<open.length;oi++){
+        if(open[oi].x===nx&&open[oi].y===ny){
+          inOpen=true; var ng=cur.g+1;
+          if(ng<open[oi].g){ open[oi].g=ng; open[oi].f=ng+open[oi].h; open[oi].parent=cur; }
+          break;
+        }
+      }
+      if(!inOpen){ open.push({x:nx,y:ny,g:cur.g+1,h:heuristic(nx,ny,g.x,g.y),f:cur.g+1+heuristic(nx,ny,g.x,g.y),parent:cur}); }
+    }
+  }
+  return null;
+}
+function drawChaser(){
+  if(!chaser) return;
+  // 黑影本体（仍画在 canvas 上，黑色可被 grayscale 保留）
+  pxRect(chaser.x,chaser.y,chaser.w,chaser.h,'#000');
+  pxRect(chaser.x+chaser.w/2-2,chaser.y-9,4,10,'#000');
+  // 红框改为独立 HTML 元素绘制（绕开 canvas 的 grayscale 滤镜，保持红色）
+  updateChaserFrame();
+}
+function updateChaserFrame(){
+  var div=document.getElementById('chaser-frame');
+  if(!div) return;
+  if(!chaser || caughtDeath){ div.style.display='none'; return; }
+  // 计算 chaser 在 canvas 内坐标（含 CAM_ZOOM），再乘以 canvas 显示缩放因子
+  var sx = ((chaser.x - 1 - camera.x) * CAM_ZOOM + W/2) * canvasScale;
+  var sy = ((chaser.y - 10 - camera.y) * CAM_ZOOM + H/2) * canvasScale;
+  var sw = ((chaser.w + 2) * CAM_ZOOM) * canvasScale;
+  var sh = ((chaser.h + 10) * CAM_ZOOM) * canvasScale;
+  // canvas 相对视口的偏移
+  var rect = document.getElementById('c').getBoundingClientRect();
+  var left = rect.left + sx;
+  var top = rect.top + sy;
+  var glow = 0.5 + 0.5*Math.sin(Date.now()*0.01);
+  var alpha = 0.4 + 0.4*glow;
+  div.style.display='block';
+  div.style.left = left + 'px';
+  div.style.top = top + 'px';
+  div.style.width = sw + 'px';
+  div.style.height = sh + 'px';
+  div.style.border = '2px solid rgba(220,0,0,'+alpha+')';
+  div.style.boxShadow = '0 0 12px rgba(220,0,0,'+(0.3+0.5*glow)+'), inset 0 0 8px rgba(220,0,0,'+(0.2+0.3*glow)+')';
+}
+function updateChaser(){
+  if(playerDead) return;
+  // 延迟生成：玩家先跑 0.5 秒，倒计时归零时在玩家当前位置生成鬼影
+  if(chaserSpawnPending>0){
+    chaserSpawnPending--;
+    if(chaserSpawnPending===0){
+      chaser = {
+        x: player.x,         // 与主角相同位置
+        y: player.y,
+        w: 18, h: 24, vx:0, vy:0
+      };
+      chaserDelay = 18;     // 生成后再延迟 0.3 秒才开始追（mp5 风格）
+      chaserPath = [];
+      pathRecalcCounter = 0;
+      cachedGrid = null;
+    }
+    return;
+  }
+  if(!chaser) return;
+  if(chaserDelay>0){ chaserDelay--; return; }
+  var ccx=chaser.x+chaser.w/2, ccy=chaser.y+chaser.h/2;
+  var pcx=player.x+player.w/2, pcy=player.y+player.h/2;
+  var dxToPlayer=pcx-ccx, dyToPlayer=pcy-ccy;
+  var distPlayer=Math.sqrt(dxToPlayer*dxToPlayer+dyToPlayer*dyToPlayer);
+  var minDist=80, maxDist=500;
+  var minRatio=0.95, maxRatio=1.8;
+  var t=Math.min(1,Math.max(0,(distPlayer-minDist)/(maxDist-minDist)));
+  var ratio=minRatio+(maxRatio-minRatio)*Math.pow(t,0.5);
+  var ps=player.speed*ratio;
+  pathRecalcCounter--;
+  if(pathRecalcCounter<=0){
+    pathRecalcCounter=PATH_RECALC;
+    var p=findPath7(ccx,ccy,pcx,pcy);
+    if(p&&p.length>0) chaserPath=p;
+  }
+  if(chaserPath.length>0){
+    var tgt=chaserPath[0];
+    var dx=tgt.x-ccx, dy=tgt.y-ccy;
+    var dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<3){ chaserPath.shift(); }
+    else{ chaser.x+=dx/dist*ps; chaser.y+=dy/dist*ps; }
+  }else{
+    // 无路径时直线逼近（无视碰撞，避免卡墙）
+    var dx2=pcx-ccx, dy2=pcy-ccy;
+    var dist2=Math.sqrt(dx2*dx2+dy2*dy2);
+    if(dist2>0){ chaser.x+=dx2/dist2*ps; chaser.y+=dy2/dist2*ps; }
+  }
+  if(chaser.x<player.x+player.w && chaser.x+chaser.w>player.x &&
+     chaser.y<player.y+player.h && chaser.y+chaser.h>player.y){ triggerChaserDeath(); }
+}
+function triggerChaserDeath(){
+  if(caughtDeath) return;
+  caughtDeath=true;
+  caughtDeathStart=Date.now();
+  playerDead=true;
+  chaserSpawnPending = 0; // 取消延迟生成（如果还在倒计时）
+  try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+  if(chaser){ chaser.x=player.x+player.w/2-chaser.w/2; chaser.y=player.y+player.h/2-chaser.h/2; }
+  if(typeof BGM!=='undefined' && BGM.stopChase) BGM.stopChase();
+  if(typeof SaveSystem!=='undefined') SaveSystem.saveCurrent();
+  setTimeout(function(){
+    go('start.html');
+  }, 2000);
+}
+function drawChaserDeath(){
+  if(!caughtDeath) return;
+  var alpha=Math.min(1,(Date.now()-caughtDeathStart||0)/500);
+  pxRect(0,0,W,H,'rgba(0,0,0,'+alpha*0.7+')');
+  var sx2=(Math.random()-0.5)*4, sy2=(Math.random()-0.5)*4;
+  pxText('你死了',W/2+sx2+2,H/2+sy2-24+2,'#000',42,'center');
+  pxText('你死了',W/2+sx2,  H/2+sy2-24,  '#a00',42,'center');
+}
+
+function update(){
+  if(caughtDeath || playerDead){
+    // 死亡过渡由 triggerChaserDeath 内的 setTimeout 跳 start.html，这里不重复跳转
+    return;
+  }
+  var mx=0, my=0;
+  if(keys['w']||keys['arrowup']) my=-1;
+  if(keys['s']||keys['arrowdown']) my=1;
+  if(keys['a']||keys['arrowleft']) mx=-1;
+  if(keys['d']||keys['arrowright']) mx=1;
+  if(mx!==0&&my!==0){ mx*=0.707; my*=0.707; }
+  var moving = mx!==0 || my!==0;
+  if(moving){
+    var nx = player.x + mx*player.speed;
+    if(!collides(nx, player.y, player.w, player.h)) player.x = nx;
+    var ny = player.y + my*player.speed;
+    if(!collides(player.x, ny, player.w, player.h)) player.y = ny;
+    if(Math.abs(mx)>Math.abs(my)){ player.facing = mx>0?3:2; }
+    else if(my!==0){ player.facing = my>0?0:1; }
+    player.walkTimer++;
+    if(player.walkTimer>12){ player.frame=(player.frame+1)%2; player.walkTimer=0; }
+  }else{
+    player.frame=0; player.walkTimer=0;
+  }
+  // ── 交互检测（靠近左端尽头时提示）──
+  interactionHint = null;
+  for(var i=0; i<interactZones.length; i++){
+    var z = interactZones[i];
+    if(player.x < z.x+z.w && player.x+player.w > z.x &&
+       player.y < z.y+z.h && player.y+player.h > z.y){
+      interactionHint = z;
+      break;
+    }
+  }
+  // ── 玩家轨迹入队（陈宇复刻用）──
+  // 每帧把主角当前 (x, y, facing, frame) 入队；满 N 帧后陈宇取队首 = 0.5 秒前
+  playerTrail.push({x:player.x, y:player.y, facing:player.facing, frame:player.frame});
+  if(playerTrail.length > CHENYU_DELAY_FRAMES){
+    playerTrail.shift();   // 保持 30 帧长度（队列中存的是"前 N 帧"的快照）
+  }
+  // ── 陈宇：复刻主角 0.5 秒前路径 ──
+  if(chenYu && chenYu.active){
+    chenYu.bob = (chenYu.bob + 0.08) % (Math.PI*2);
+    // 缓冲未满时陈宇站在玩家身后 18px（启动阶段）
+    if(playerTrail.length < CHENYU_DELAY_FRAMES){
+      // 简单相对：玩家身后 18px（按 facing 方向）
+      var bx = player.x, by = player.y;
+      if(player.facing===2) bx += 18;       // 面向左 → 陈宇在右后
+      else if(player.facing===3) bx -= 18;  // 面向右
+      else if(player.facing===0) by += 18;  // 面向下
+      else if(player.facing===1) by -= 18;  // 面向上
+      if(!collides(bx, by, 12, 18)){ chenYu.x = bx; chenYu.y = by; }
+      chenYu.facing = player.facing; chenYu.frame = player.frame;
+    } else {
+      // 缓冲满：取最旧的那一帧 = 0.5 秒前主角状态, 直接复刻
+      var snap = playerTrail[0];
+      chenYu.x = snap.x;
+      chenYu.y = snap.y;
+      chenYu.facing = snap.facing;
+      chenYu.frame = snap.frame;
+    }
+  }
+  updateCamera();
+  updateChaser();
+  for(var i=0;i<dusts.length;i++){
+    var d = dusts[i];
+    d.y += d.vy;
+    if(d.y < HALL_TOP+10){ d.y = HALL_BOT-20; d.x = HALL_LEFT + Math.random()*HALL_LEN; }
+  }
+  lampT++;
+  if(tipTimer>0) tipTimer--;
+  if(tipTimer<=0) tipText='';
+  if(screenShake>0) screenShake--;
+}
+
+// 绘制陈宇（穿蓝白校服的小孩，12×18 像素）
+function drawChenYu(px,py){
+  var ox=Math.floor(px), oy=Math.floor(py + Math.sin(chenYu.bob)*0.6);
+  var pw=12, ph=18, f=chenYu.facing, fr=chenYu.frame;
+  // 影子
+  pxRect(ox+2, oy+ph-2, 10, 2, 'rgba(0,0,0,0.5)');
+  // 双腿（按 facing + frame 摆动 → 复刻主角动作）
+  var legOff = fr*2;
+  if(f===0){
+    // 面下
+    pxRect(ox+2, oy+11, 3, 5, '#333');
+    pxRect(ox+7, oy+11, 3, 5, '#333');
+    if(fr===0){ pxRect(ox+2, oy+13+legOff, 3, 3, '#444'); pxRect(ox+7, oy+13-legOff, 3, 3, '#444'); }
+    else { pxRect(ox+2, oy+13-legOff, 3, 3, '#444'); pxRect(ox+7, oy+13+legOff, 3, 3, '#444'); }
+  }else if(f===1){
+    // 面上
+    pxRect(ox+2, oy+11, 3, 5, '#333');
+    pxRect(ox+7, oy+11, 3, 5, '#333');
+  }else if(f===3){
+    // 面右
+    pxRect(ox+2, oy+11, 3, 5, '#333');
+    pxRect(ox+7, oy+11, 3, 5, '#333');
+    if(fr===0) pxRect(ox+2, oy+13+legOff, 3, 3, '#444');
+    else pxRect(ox+7, oy+13+legOff, 3, 3, '#444');
+  }else{
+    // 面左（默认 f===2）
+    pxRect(ox+2, oy+11, 3, 5, '#333');
+    pxRect(ox+7, oy+11, 3, 5, '#333');
+    if(fr===0) pxRect(ox+2, oy+13+legOff, 3, 3, '#444');
+    else pxRect(ox+7, oy+13+legOff, 3, 3, '#444');
+  }
+  // 躯干（蓝白校服）
+  pxRect(ox+2, oy+6, 8, 7, '#5a7aaa');
+  pxRect(ox+4, oy+6, 4, 7, '#aaccee');
+  // 胳膊（按 facing 朝向）
+  if(f===2){ pxRect(ox+10, oy+7, 2, 4, '#5a7aaa'); }
+  else if(f===3){ pxRect(ox, oy+7, 2, 4, '#5a7aaa'); }
+  else { pxRect(ox, oy+7, 2, 4, '#5a7aaa'); pxRect(ox+10, oy+7, 2, 4, '#5a7aaa'); }
+  // 头
+  pxRect(ox+3, oy, 6, 7, '#dcc8b8');
+  // 头发（深色）
+  pxRect(ox+3, oy, 6, 2, '#222');
+  // 眼睛（按 facing）
+  if(f===2){
+    pxRect(ox+3, oy+3, 1, 1, '#111');
+  } else if(f===3){
+    pxRect(ox+8, oy+3, 1, 1, '#111');
+  } else {
+    pxRect(ox+4, oy+3, 1, 1, '#111');
+    pxRect(ox+7, oy+3, 1, 1, '#111');
+  }
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  var sx=screenShake>0?(Math.random()-0.5)*screenShake:0;
+  var sy=screenShake>0?(Math.random()-0.5)*screenShake:0;
+
+  ctx.save();
+  ctx.translate(sx,sy);
+  ctx.translate(W/2, H/2);
+  ctx.scale(CAM_ZOOM, CAM_ZOOM);
+  ctx.translate(-camera.x, -camera.y);
+
+  // 地面
+  pxRect(HALL_LEFT, HALL_TOP, HALL_LEN, HALL_BOT-HALL_TOP, P.FLOOR);
+
+  // ── 地砖纹理（大块地砖 + 横竖缝线 + 污渍噪点）──
+  var TILE_W = 40, TILE_H = 40;
+  // 交替色调的地砖底色
+  for(var tx=HALL_LEFT; tx<HALL_RIGHT; tx+=TILE_W){
+    for(var ty=HALL_TOP; ty<HALL_BOT; ty+=TILE_H){
+      var isDark = ((tx/TILE_W)+(ty/TILE_H))%2===1;
+      var c = isDark ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.03)';
+      pxRect(tx, ty, TILE_W, TILE_H, c);
+    }
+  }
+  // 纵向砖缝
+  ctx.globalAlpha = 0.18;
+  for(var gx=HALL_LEFT; gx<HALL_RIGHT; gx+=TILE_W){
+    pxRect(gx, HALL_TOP, 1, HALL_BOT-HALL_TOP, '#000');
+  }
+  // 横向砖缝
+  for(var gy=HALL_TOP; gy<HALL_BOT; gy+=TILE_H){
+    pxRect(HALL_LEFT, gy, HALL_LEN, 1, '#000');
+  }
+  ctx.globalAlpha = 1;
+  // 随机磨损斑点（预先固定位置，避免每帧闪烁）
+  if(!window._floorSpeckles){
+    window._floorSpeckles = [];
+    var seed = 42;
+    function rnd(){ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }
+    for(var si=0; si<300; si++){
+      window._floorSpeckles.push({
+        x: HALL_LEFT + rnd()*HALL_LEN,
+        y: HALL_TOP + rnd()*(HALL_BOT-HALL_TOP),
+        s: 1+Math.floor(rnd()*3),
+        a: 0.04 + rnd()*0.12
+      });
+    }
+  }
+  ctx.globalAlpha = 1;
+  for(var si=0; si<window._floorSpeckles.length; si++){
+    var sp = window._floorSpeckles[si];
+    pxRect(sp.x, sp.y, sp.s, sp.s, 'rgba(0,0,0,'+sp.a+')');
+  }
+
+  // 走廊标牌
+  pxText('实  验  区  ·  漫  长  走  廊', HALL_LEFT+HALL_LEN/2, HALL_TOP+10, '#3a352a', 11, 'center');
+  pxText('（禁止入内）', HALL_LEFT+HALL_LEN/2, HALL_TOP+24, '#2a2620', 9, 'center');
+
+  // 尽头门（装饰）
+  dEndDoor(endDoor.x, endDoor.y, endDoor.w, endDoor.h);
+
+  // 沿走廊布置：吊灯（每盏根据 lampT 决定亮/闪/灭）
+  for(var li=0; li<lampPositions.length; li++){
+    var lx = lampPositions[li];
+    // 每盏灯有自己的相位：基于 li 错开
+    var phase = (lampT + li*37) % 240;
+    var on = phase < 180;          // 亮 180 帧
+    var flicker = phase >= 170;    // 灭之前闪烁
+    dCeilingLamp(lx, HALL_TOP-6, on, flicker);
+  }
+
+  // 障碍物
+  for(var oi2=0; oi2<obstacles.length; oi2++){
+    var ob = obstacles[oi2];
+    if(ob.kind==='cabinet') dCabinet(ob.x,ob.y);
+    else if(ob.kind==='shelf') dShelf(ob.x,ob.y);
+    else if(ob.kind==='block') dBlock(ob.x,ob.y,ob.w,ob.h);
+    else if(ob.kind==='desk') dToppledDesk(ob.x,ob.y);
+    else if(ob.kind==='freezer') dFreezer(ob.x,ob.y);
+    else if(ob.kind==='barrel') dBarrel(ob.x,ob.y);
+    else if(ob.kind==='chair') dBrokenChair(ob.x,ob.y);
+  }
+
+  // 墙体覆盖（跳过障碍物——障碍物已用带图案的 dBlock/dCabinet 等单独绘制）
+  for(var wi=0; wi<walls.length; wi++){
+    var ww = walls[wi];
+    if(ww.isObs) continue;
+    pxRect(ww.x, ww.y, ww.w, ww.h, P.WALL3);
+  }
+  drawBorder(HALL_LEFT, HALL_TOP, HALL_LEN, HALL_BOT-HALL_TOP, P.WALL3, 4);
+
+  // 灰尘粒子
+  for(var di=0; di<dusts.length; di++){
+    var du = dusts[di];
+    pxRect(du.x, du.y, du.size, du.size, 'rgba(200,200,210,'+du.a+')');
+  }
+
+  // ── 走廊外墙体装饰（世界坐标，相机变换内画）──
+  // 上下用大片墙体 + 装备满铺，确保走廊外不露灰
+  (function drawWallCover(){
+    // 视野世界 y 范围（包含相机上方/下方看到的世界区域）
+    var viewW = W / CAM_ZOOM;
+    var viewH = H / CAM_ZOOM;
+    var viewX0 = camera.x - viewW/2;
+    var viewX1 = camera.x + viewW/2;
+    var viewY0 = camera.y - viewH/2;
+    var viewY1 = camera.y + viewH/2;
+    // 上方：viewY0 ~ HALL_TOP（走廊顶上方）
+    // 下方：HALL_BOT ~ viewY1（走廊底下方）
+    function fillStrip(yTop, yBot, seedShift){
+      var yspan = yBot - yTop;
+      if(yspan < 4) return;
+      var rows = Math.max(1, Math.floor(yspan / 60));
+      for(var r=0; r<rows; r++){
+        var rowTop = yTop + (r * (yspan/rows));
+        var rowBot = yTop + ((r+1) * (yspan/rows));
+        var rowH = rowBot - rowTop;
+        if(rowH < 8) continue;
+        // 横向蛇形错位
+        var xOff = (r % 2) * 60;
+        var x = viewX0 - 40 - xOff;
+        while(x < viewX1 + 80){
+          // 确定性伪随机
+          var hh = ((x * 2654435761) ^ (r * 131) ^ (seedShift * 17)) >>> 0;
+          var t = hh % 7;
+          var w;
+          if(t===0) w = 60;
+          else if(t===1) w = 80;
+          else if(t===2) w = 70;
+          else if(t===3) w = 100;
+          else if(t===4) w = 90;
+          else if(t===5) w = 110;
+          else w = 70;
+          var useH = Math.max(14, Math.min(rowH - 2, Math.floor(rowH * 0.92)));
+          var oy;
+          // 顶墙：物体贴走廊沿下沿 (即 rowBot)
+          // 底墙：物体贴走廊沿上沿 (即 rowTop)
+          if(seedShift === 0){
+            // 顶墙：最后一行贴 rowBot
+            oy = (r === rows-1) ? (rowBot - useH) : rowTop;
+          } else {
+            // 底墙：第一行贴 rowTop
+            oy = (r === 0) ? rowTop : (rowBot - useH);
+          }
+          if(oy < rowTop) oy = rowTop;
+          if(oy + useH > rowBot) useH = rowBot - oy;
+          if(useH < 6){ x += w + 8; continue; }
+          // 阴影
+          pxRect(x+2, oy+2, w, useH, 'rgba(0,0,0,0.30)');
+          if(t===0) dCabinet(x, oy);
+          else if(t===1){
+            dBarrel(x, oy + useH - 28);
+            if(w > 50) dBarrel(x+30, oy + useH - 28);
+          }
+          else if(t===2){
+            dToppledDesk(x+4, oy + useH - 8);
+            if(w > 50) dBrokenChair(x + w - 24, oy + useH - 14);
+          }
+          else if(t===3) dShelf(x+5, oy);
+          else if(t===4) dFreezer(x+5, oy);
+          else if(t===5){
+            pxRect(x, oy, w, useH, '#3a2e1e'); drawBorder(x, oy, w, useH, '#1a140a', 1);
+            pxRect(x+3, oy+3, w-6, 2, '#5a4a30');
+            var eg = (hh >>> 4) % 3;
+            if(eg===0) dBarrel(x+8, oy + 2);
+            else if(eg===1){ dBarrel(x+10, oy + 2); dBarrel(x+w-34, oy + 2); }
+            else { pxRect(x+w/2-12, oy+4, 24, useH-10, '#2a3a3a'); drawBorder(x+w/2-12, oy+4, 24, useH-10, '#1a2424', 1); }
+          }
+          else dSign(x, oy, w, useH);
+          x += w + 8;
+        }
+      }
+    }
+    // 1) 上墙皮：背景先刷深灰（防止物体之间有缝）
+    if(viewY0 < HALL_TOP){
+      var tTop = Math.max(viewY0, -1000);
+      pxRect(viewX0, tTop, viewX1-viewX0, HALL_TOP-tTop, '#2a2a2a');
+      fillStrip(tTop, HALL_TOP, 0);
+    }
+    // 2) 下墙皮
+    if(viewY1 > HALL_BOT){
+      var tBot = Math.min(viewY1, 2000);
+      pxRect(viewX0, HALL_BOT, viewX1-viewX0, tBot-HALL_BOT, '#2a2a2a');
+      fillStrip(HALL_BOT, tBot, 1);
+    }
+    // 3) 走廊左右端外
+    if(viewX0 < HALL_LEFT){
+      pxRect(viewX0, viewY0, HALL_LEFT-viewX0, viewY1-viewY0, '#2a2a2a');
+    }
+    if(viewX1 > HALL_RIGHT){
+      pxRect(HALL_RIGHT, viewY0, viewX1-HALL_RIGHT, viewY1-viewY0, '#2a2a2a');
+    }
+  })();
+
+  // 陈宇先画（被主角覆盖）→ 主角显示优先级更高
+  if(chenYu && chenYu.active){
+    drawChenYu(chenYu.x, chenYu.y);
+  }
+  // 黑影（在玩家之下绘制，方便看清黑影位置）
+  drawChaser();
+  // 玩家（最后画，盖在陈宇和黑影上）
+  drawPlayer(player.x, player.y);
+
+  ctx.restore();
+
+  // ── 追逐红色闪烁 ──
+  if(redFlashOn && !caughtDeath && !playerDead){
+    var rf=Math.sin(Date.now()*0.006)*0.12+0.2;
+    pxRect(0,0,W,H,'rgba(150,0,0,'+rf+')');
+  }
+
+  // ── 死亡画面 ──
+  drawChaserDeath();
+
+  // ── 黑暗视野（屏幕层，仿 mp5：以玩家为中心的径向渐变）──
+  var spx = (player.x + player.w/2 - camera.x) * CAM_ZOOM + W/2;
+  var spy = (player.y + player.h/2 - camera.y) * CAM_ZOOM + H/2;
+  var dg = ctx.createRadialGradient(spx, spy, 35, spx, spy, 220);
+  dg.addColorStop(0, 'rgba(0,0,0,0)');
+  dg.addColorStop(0.35, 'rgba(0,0,0,0.3)');
+  dg.addColorStop(1, 'rgba(0,0,0,0.7)');
+  ctx.fillStyle = dg;
+  ctx.fillRect(0, 0, W, H);
+
+  // HUD
+  pxRect(0, H-22, W, 22, 'rgba(0,0,0,0.7)');
+  pxText('WASD 移动   ESC 返回 map6', 10, H-16, P.HUD, 9);
+  if(interactionHint){
+    var hw = (interactionHint.label||'交互').length * 7;
+    pxRect(W/2-hw/2-8, H-38, hw+16, 18, 'rgba(0,0,0,0.85)');
+    pxText('[F] '+interactionHint.label, W/2, H-36, '#ffcc80', 10, 'center');
+  }
+  if(chenYu && chenYu.active){
+    pxText('陈宇  在你身后', W/2, H-16, '#aac', 9, 'center');
+  }
+  pxText('走廊', W-30, H-16, P.HINT, 8, 'right');
+
+  if(tipText){
+    var tw = tipText.length*7;
+    pxRect(W/2-tw/2-6, 4, tw+12, 16, 'rgba(0,0,0,0.85)');
+    pxText(tipText, W/2, 7, '#aaa', 9, 'center');
+  }
+}
+
+tip('推开小门，踏入漫长的走廊。尽头有一扇不打开的门。');
+gameLoop = function(){ update(); render(); requestAnimationFrame(gameLoop); };
+gameLoop();
+
+})();
+</script>
+<script src="time.js"></script>
+<script src="bgm.js"></script>
+<script>
+// map7：禁用 bgm.js 合成器，改为播放 map7.mp3
+(function(){
+  if(window.BGM){
+    window.BGM.start = function(){
+      var bgm = document.getElementById('map7-bgm');
+      if(bgm && bgm.paused){ bgm.play().catch(function(){}); }
+    };
+    window.BGM.stop = function(){
+      var bgm = document.getElementById('map7-bgm');
+      if(bgm){ bgm.pause(); }
+    };
+    window.BGM.toggle = function(){
+      var bgm = document.getElementById('map7-bgm');
+      if(!bgm) return false;
+      if(bgm.paused){ bgm.play().catch(function(){}); }
+      else { bgm.pause(); }
+      return !bgm.paused;
+    };
+    window.BGM.setVolume = function(v){
+      var bgm = document.getElementById('map7-bgm');
+      if(bgm){ bgm.volume = Math.max(0, Math.min(1, v)); }
+    };
+  }
+  var bgm = document.getElementById('map7-bgm');
+  if(bgm){
+    bgm.volume = 0.6;
+    bgm.play().catch(function(){
+      var once = function(){
+        bgm.play().catch(function(){});
+        document.removeEventListener('keydown', once);
+        document.removeEventListener('click', once);
+      };
+      document.addEventListener('keydown', once);
+      document.addEventListener('click', once);
+    });
+  }
+})();
+</script>
+<script src="save.js"></script>
+</body>
+</html>

@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星榆中学 2008 · 一楼</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;margin:0 auto;background:#0a0a0a}
+
+/* ── 跳脸惊吓效果 ── */
+#jumpscare-overlay{
+  display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;
+  z-index:99999;background:#000;cursor:pointer;
+}
+#jumpscare-overlay.active{
+  display:flex;justify-content:center;align-items:flex-start;
+  animation:jitter 0.08s infinite;
+}
+#jumpscare-flash{
+  position:fixed;top:0;left:0;width:100vw;height:100vh;
+  z-index:999999;pointer-events:none;opacity:0;
+  background:#fff;
+}
+#jumpscare-flash.active{
+  animation:flashStrobe 0.3s ease-out forwards;
+}
+@keyframes flashStrobe{
+  0%{opacity:0}
+  8%{opacity:0.9}
+  16%{opacity:0.1}
+  25%{opacity:0.8}
+  35%{opacity:0}
+  50%{opacity:0.7}
+  65%{opacity:0.05}
+  80%{opacity:0.5}
+  100%{opacity:0}
+}
+#jumpscare-img{
+  width:auto;height:auto;
+  transform:scale(3);
+  animation:zoomPulse 0.06s infinite alternate,imageShake 0.04s infinite;
+  filter:contrast(1.3) brightness(1.1);
+}
+@keyframes jitter{
+  0%{transform:translate(0,0)} 25%{transform:translate(-6px,4px)}
+  50%{transform:translate(6px,-4px)} 75%{transform:translate(-4px,-6px)}
+  100%{transform:translate(4px,6px)}
+}
+@keyframes zoomPulse{
+  from{transform:scale(3)} to{transform:scale(3.36)}
+}
+@keyframes imageShake{
+  0%{filter:contrast(1.3) brightness(1.1) hue-rotate(0deg)}
+  50%{filter:contrast(1.5) brightness(1.3) hue-rotate(10deg) saturate(2)}
+  100%{filter:contrast(1.3) brightness(1.1) hue-rotate(-5deg) saturate(1.5)}
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="jumpscare-overlay"><div id="jumpscare-flash"></div><img id="jumpscare-img" src="goast.png" alt=""></div>
+<script>
+(function(){
+var C=document.getElementById('c');
+var ctx=C.getContext('2d');
+
+var W=960,H=540;
+C.width=W;C.height=H;
+
+function resize(){
+  var s=Math.min(window.innerWidth/W,window.innerHeight/H);
+  C.style.width=(W*s)+'px';
+  C.style.height=(H*s)+'px';
+}
+resize();window.addEventListener('resize',resize);
+
+// ── Palette ──
+var P={
+  BG:'#0a0a0a',
+  WALL:'#2a2a2a',
+  WALL2:'#3a3a3a',
+  WALL3:'#444',
+  FLOOR:'#161616',
+  CORR:'#1c1c1c',
+  HALL:'#181818',
+  ROOM:'#1a1a1a',
+  DARK:'#111',
+  TEXT:'#777',
+  HINT:'#8a7a5a',
+  RED:'#883333',
+  GREEN:'#3a5a3a',
+  BLUE:'#3a4a6a',
+  YELLOW:'#6a5a30',
+  PLAYER:'#8a8a8a',
+  PLAYER2:'#bbb',
+  DIALOG_BG:'#111',
+  DIALOG_BORDER:'#444',
+  DIALOG_TITLE:'#bbb',
+  DIALOG_TEXT:'#888',
+  HUD:'#555',
+  CRT_SCREEN:'#0a1a0a',
+  CRT_BODY:'#333',
+  CRT_GLOW:'rgba(60,180,60,0.3)',
+  DOOR:'#2a2a20',
+  INTERACT:'#888'
+};
+
+// ── Map Data ──
+// Layout: 6 columns, rooms + corridor + hall
+// Coordinates in pixel space (960x540)
+
+var B={ // building bounds
+  L:70, T:50, R:890, B:490
+};
+var CW=B.R-B.L; // 820
+var CH=B.B-B.T; // 440
+
+// Column definitions
+var cols=[
+  {x:B.L+4,   w:126, t:'101教室',   b:'102教室',   td:null,  bd:null,     bp:false}, // col0
+  {x:B.L+134, w:126, t:'103教室',   b:'闲置活动室', td:null,  bd:null,     bp:false}, // col1
+  {x:B.L+264, w:126, t:'楼梯间',    b:'',           td:null,  bd:null,     bp:true},  // col2 stairs
+  {x:B.L+394, w:126, t:'医务室',b:'档案储物间',td:'pwd_jiaowu',bd:'doc_archive',bp:false}, // col3
+  {x:B.L+524, w:126, t:'监控机房',   b:'门卫值班室', td:'pwd_monitor',bd:'doc_wang', bp:false}, // col4
+  {x:B.L+654, w:160, t:'侧门通道',   b:'',           td:null,  bd:null,     bp:true}   // col5 passage
+];
+
+var roomTopY=B.T+4;       // top room row y start
+var roomTopH=100;          // top room height
+var roomTopYE=roomTopY+roomTopH; // top room end y = B.T+104
+
+var gapY=roomTopYE+4;     // corridor y start
+var gapH=36;               // corridor height
+var gapYE=gapY+gapH;      // corridor end y
+
+var roomBotY=gapYE+4;     // bottom room row y start
+var roomBotH=100;          // bottom room height
+var roomBotYE=roomBotY+roomBotH; // bottom room end y
+
+var hallY=roomBotYE+4;    // hall y start
+var hallH=72;              // hall height
+var hallYE=hallY+hallH;   // hall end y
+
+var gateX=B.L+CW/2-20;
+var gateY=B.B-12;
+var gateW=40;
+var gateH=12;
+var gateLocked=true;
+
+// Build wall rectangles for collision
+var walls=[];
+var doors=[]; // gaps in walls
+
+// Outer walls
+walls.push({x:B.L,y:B.T,w:B.R-B.L,h:4}); // top
+walls.push({x:B.L,y:B.B-4,w:gateX-B.L,h:4}); // bottom left of gate
+walls.push({x:gateX+gateW,y:B.B-4,w:B.R-(gateX+gateW),h:4}); // bottom right of gate
+walls.push({x:gateX,y:gateY,w:gateW,h:gateH}); // gate blocking wall
+walls.push({x:B.L,y:B.T,w:4,h:B.B-B.T}); // left
+walls.push({x:B.R-4,y:B.T,w:4,h:B.B-B.T}); // right
+
+// Horizontal walls between rows - split around side passage (col5)
+// wall below top rooms, with gap at col5 passage
+walls.push({x:B.L,y:roomTopYE,w:cols[5].x-B.L,h:4});
+walls.push({x:cols[5].x+cols[5].w,y:roomTopYE,w:B.R-(cols[5].x+cols[5].w),h:4});
+// wall below corridor, with gap at col5 passage
+walls.push({x:B.L,y:gapYE,w:cols[5].x-B.L,h:4});
+walls.push({x:cols[5].x+cols[5].w,y:gapYE,w:B.R-(cols[5].x+cols[5].w),h:4});
+// wall below bottom rooms, with gap at col5 passage
+walls.push({x:B.L,y:roomBotYE,w:cols[5].x-B.L,h:4});
+walls.push({x:cols[5].x+cols[5].w,y:roomBotYE,w:B.R-(cols[5].x+cols[5].w),h:4});
+
+// Vertical walls between columns
+for(var i=0;i<cols.length-1;i++){
+  var wx=cols[i].x+cols[i].w;
+  if(cols[i].bp || cols[i+1].bp) continue; // skip wall if either is passage space
+  walls.push({x:wx,y:roomTopY,w:4,h:roomTopH});
+  walls.push({x:wx,y:roomBotY,w:4,h:roomBotH});
+}
+// Wall between col4 and col5 (passage) - split for corridor passage
+walls.push({x:cols[4].x+cols[4].w,y:roomTopY,w:4,h:roomTopH});
+walls.push({x:cols[4].x+cols[4].w,y:gapYE,w:4,h:roomBotH});
+
+
+// Doors (gaps in walls for each room)
+// Top room doors (at bottom of top row wall)
+function addDoor(cx,label,id,row){
+  var dx=cx+cols[0].w/2-12;
+  var dy=row==='t'?roomTopYE-4:roomBotYE-4;
+  doors.push({x:dx,y:dy,w:24,h:8,label:label,id:id,row:row});
+}
+addDoor(cols[0].x,'101教室','room_101','t');
+addDoor(cols[1].x,'103教室','room_103','t');
+addDoor(cols[3].x,'医务室','pwd_jiaowu','t');
+addDoor(cols[4].x,'监控机房','pwd_monitor','t');
+addDoor(cols[0].x,'102教室','room_102','b');
+addDoor(cols[1].x,'闲置活动室','room_act','b');
+addDoor(cols[3].x,'档案储物间','doc_archive','b');
+addDoor(cols[4].x,'门卫值班室','doc_wang','b');
+
+// Hall door (at top of hall)
+doors.push({x:B.L+B.R-B.L/2-20,y:hallY,w:40,h:8,label:'一楼大厅','id':'doc_bulletin',row:'h'});
+
+// Side exit door
+doors.push({x:cols[5].x+cols[5].w-36,y:roomTopY+roomTopH/2-12,w:8,h:24,label:'室外通道','id':'exit_side',row:'t'});
+
+// Gate
+doors.push({x:gateX,y:gateY,w:gateW,h:gateH,label:'大门','id':'gate',row:'h'});
+
+// ── Interaction zones ──
+var interactZones=[
+  {x:cols[3].x,y:roomTopY,w:cols[3].w,h:roomTopH, id:'pwd_jiaowu',   label:'医务室', type:'password', pw:'1705', docId:'jiaowu'},
+  {x:cols[4].x,y:roomTopY,w:cols[4].w,h:roomTopH, id:'pwd_monitor',  label:'监控机房',    type:'password', pw:'1700',     docId:'monitor'},
+  {x:cols[3].x,y:roomBotY,w:cols[3].w,h:roomBotH, id:'doc_archive',  label:'档案储物间',   type:'password', pw:'4829',     docId:'archive'},
+  {x:cols[4].x,y:roomBotY,w:cols[4].w,h:roomBotH, id:'doc_wang',     label:'门卫值班室',   type:'password', pw:'8080',     docId:'wang'},
+  {x:cols[1].x,y:roomTopY,w:cols[1].w,h:roomTopH, id:'room_103',    label:'103教室',      type:'doc',     docId:'room103'},
+  {x:cols[0].x,y:roomTopY,w:cols[0].w,h:roomTopH, id:'room_101',    label:'101教室',      type:'doc',     docId:'room101'},
+  {x:B.L+CW/2-70,y:hallY+hallH-30,w:140,h:30,   id:'doc_bulletin', label:'公告栏',       type:'doc',      docId:'bulletin'},
+  {x:gateX,y:gateY,w:gateW,h:gateH,              id:'gate',         label:'大门',         type:'password', pw:'8127', docId:null},
+  {x:cols[0].x,y:roomBotY,w:cols[0].w,h:roomBotH,id:'room_102',     label:'102教室·电脑', type:'computer', docId:null},
+  {x:cols[2].x,y:roomTopY,w:cols[2].w,h:roomTopH+gapH+roomBotH,id:'stairs_up',label:'上二楼',type:'stairs',docId:null},
+  {x:cols[5].x,y:gapY,w:cols[5].w,h:gapH, id:'side_breaker',label:'通电电闸',type:'sideStairs',docId:null}
+];
+
+// ── Documents ──
+var docs={
+  bulletin:{
+    title:'一楼大厅 — 公告栏',
+    text:'官方校规（2008年9月）\n\n1. 按时到校，迟到3次记过\n2. 教学楼每晚21:00锁门\n3. 禁止前往三楼滞留\n4. 医务室每日17:00开放\n5. 每周五大扫除'
+  },
+  archive:{
+    title:'档案储物间 — 学生处分记录',
+    text:'高三(1)班花名册：42人\n旧补课通知单(07-08学年)\n学籍变动：8人转学/休学\n\n── 学生处分记录 ──\n2008.09.12  张伟 携带手机到校 记过处分\n2008.09.25  刘洋 课间在教学楼追逐打闹 警告处分\n2008.10.07  匿名举报：有学生试出值班室密码是8080\n2008.10.11  陈小云 未穿校服屡教不改 警告处分\n2008.10.14  匿名举报：有人深夜潜入三楼实验室\n\n（处分记录本边缘有撕页痕迹）'
+  },
+  wang:{
+    title:'王伯手写笔记（给陈宇）',
+    text:'1、三楼朗读声是失踪同班同学\n2、无脸校服人必须主动搭话\n3、绝对不要触碰医务室红色瓶装药剂，接触会加重幻觉缠身\n4、不要打开三楼储物柜，柜内存在会扭曲心智的污染气体\n5、周五切勿看向卫生间镜面，镜中事物会跟随你离开教学楼\n\n——这是王伯悄悄告诉陈宇的版本。'
+  },
+  jiaowu:{
+    title:'医务室 — 已解锁',
+    text:'医务室药品清单（2008年9月）\n\n红色瓶装药剂：封存，禁止学生接触\n常规药品：感冒药、绷带、碘酒\n\n请值班老师使用监控摄像头时刻监视红药瓶\n监控密码为校内医务室每日短暂开放时间'
+  },
+  monitor:{
+    title:'监控机房 — 已解锁',
+    text:'可查看三楼走廊模糊监控录像\n画面中有人影在走廊徘徊\n日期标记：2008.10.15\n\n模糊的人影穿着蓝白校服\n\n屏幕角落显示值班记录：红药瓶监视已确认，时间 17:00'
+  },
+  room103:{
+    title:'103教室 — 课桌留言',
+    text:'已注销用户：我一定要找到老师埋藏的帖子！我要去的地方.....密码是\n[RED]1、一轮 月 2、两阵 风 3、半个 日 4、三座 山[/RED]'
+  },
+  room101:{
+    title:'101教室 — 黑板与挂钟',
+    text:'黑板正上方挂着一只老式挂钟，指针早已停摆。\n黑板上用粉笔写着 0571，但有两个数字被人用黑漆涂死了，看不出原本的样子。'
+  },
+  sideBreaker:{
+    title:'侧门通道 — 通电电闸',
+    text:'奇怪····居然有一个通了电的电闸\n这里出不去'
+  }
+};
+
+// ── State ──
+var jiaowuUnlocked=false;
+var monitorUnlocked=false;
+var redBottle=null; // {x, y} — 红色药瓶，解锁医务室后出现在玩家旁边
+var player={
+    x:B.L+CW/2-6, y:hallY+hallH-30,
+    w:12, h:18, vx:0, vy:0, speed:1.8,
+    facing:0, frame:0, walkTimer:0
+  };
+window.__xyzh_player = player;
+(function(){
+  try{
+    var r = JSON.parse(sessionStorage.getItem('xyzh_resume')||'null');
+    if(r && r.map === location.pathname.split('/').pop()){
+      player.x = r.x; player.y = r.y;
+      sessionStorage.removeItem('xyzh_resume');
+    }
+  }catch(e){}
+})();
+var returnRoom=sessionStorage.getItem('mapReturn');
+if(returnRoom==='102'){
+  player.x=cols[0].x+cols[0].w/2-6;
+  player.y=roomBotYE+10;
+  sessionStorage.removeItem('mapReturn');
+}else if(returnRoom==='stairs'){
+  player.x=cols[2].x+cols[2].w/2-6;
+  player.y=gapY+10;
+  sessionStorage.removeItem('mapReturn');
+}
+
+// ── 追逐黑影（跨楼层持续）──
+var chaser=null;
+var chaserDelay=0;        // 鬼影生成后延迟追逐（帧，约 0.3s）
+var redFlashOn=false;
+var CHASE_SPEED_MUL=1.7;      // 追逐时玩家移速倍率（黑影同步按比例加快）
+var CHASE_CHASER_RATIO=0.6;   // 黑影相对玩家速度（人物的 0.6 倍）
+
+// 楼层切换时保存黑影相对玩家位置，保证追逐连续
+function saveChaserRel(){
+  if(!chaser) return;
+  try{ sessionStorage.setItem('chaserRel', JSON.stringify({dx:chaser.x-player.x, dy:chaser.y-player.y})); }catch(e){}
+}
+// 若追逐已开始（来自其它楼层），恢复黑影 + 红闪 + 提速
+(function(){
+  try{
+    if(sessionStorage.getItem('chaseOn')==='1'){
+      player.speed*=CHASE_SPEED_MUL;
+      redFlashOn=true;
+      var tpTR = sessionStorage.getItem('map1_tp_tr')==='1';
+      try{ sessionStorage.removeItem('map1_tp_tr'); }catch(e){}
+      if(tpTR){
+        // 玩家落到 map1 右上角（侧门通道上方的开阔区，墙在该列留缺口不会卡死）
+        player.x = B.R - 26;
+        player.y = B.T + 22;
+        // 0.5 秒后黑影出现在右上角，沿用已有 A* 追逐 / 抓捕即死机制继续追
+        setTimeout(function(){
+          chaser={x:B.R-70, y:B.T+22, w:18, h:24, vx:0, vy:0};
+          chaserDelay=18; // 约 0.3 秒后开始追逐
+        }, 500);
+      } else {
+        // 固定生成在楼梯间（红圈位置）
+        chaser={x:cols[2].x+30, y:roomTopY+38, w:18, h:24, vx:0, vy:0};
+        chaserDelay=18; // 0.3 秒后开始追逐
+      }
+    }
+  }catch(e){}
+})();
+
+var keys={};
+var dialog=null; // {title,text,buttons,onClose}
+var archiveState=null; // 'choice' | 'restored': 档案储物间论坛归档交互
+var bottleState=null; // 'choice': 红色药瓶吞服选择
+var shakePermanent=false; // 拒绝吞服后屏幕持续抽搐
+var pwDialog=null; // {targetId, input}
+var interactionHint=null; // door player is near
+var screenShake=0;
+var tipText='';
+var tipTimer=0;
+
+// 快速移动黑影（随机事件）
+var fastShadow=null; // {x,y,w,h,vx,vy,timer} — 快速穿过画面的黑影
+var fastShadowCooldown=Math.floor(Math.random()*(25200-18000+1))+18000; // 5~7分钟帧计数
+
+// ── Input ──
+window.addEventListener('keydown',function(e){
+  keys[e.key.toLowerCase()]=true;
+  if(e.key==='y'||e.key==='Y'){
+    if(dialog && bottleState==='choice'){
+      e.preventDefault();
+      bottleState=null;
+      redBottle=null;
+      closeDialog();
+      // 吞服后更新监控机房文本
+      docs.monitor.text='可查看三楼走廊模糊监控录像\n画面中有人影在走廊徘徊\n日期标记：2008.10.15\n\n模糊的人影穿着蓝白校服\n\n屏幕角落显示值班记录：红药瓶监视已确认，时间 17:00\n\n[RED]你揉了揉眼 看着模糊人影在三楼的密码中输入密码····\n前几位看不真切 可最后一位模模糊糊是一个竖轴对称结构的数字[/RED]';
+      tip('你吞下了红色药丸……视野变得清晰了一些');
+      BGM.tryPlaySwitchSound();
+      return;
+    }
+    if(dialog && archiveState==='choice'){
+      e.preventDefault();
+      try{ sessionStorage.setItem('xyzh_forum_restored','1'); }catch(e){}
+      archiveState=null;
+      closeDialog();
+      tip('学校论坛原文已归档，请返回电脑查看');
+      return;
+    }
+  }
+  if(e.key==='n'||e.key==='N'){
+    if(dialog && bottleState==='choice'){
+      e.preventDefault();
+      bottleState=null;
+      closeDialog();
+      // 拒绝吞服：大幅减速 + 持续画面抽搐
+      player.speed *= 0.1;
+      shakePermanent = true;
+      screenShake = 30;
+      tip('你决定不碰这瓶药……但身体越来越沉重，世界开始扭曲');
+      BGM.tryPlaySwitchSound();
+      return;
+    }
+    if(dialog && archiveState==='choice'){
+      e.preventDefault();
+      closeDialog();
+      archiveState=null;
+      return;
+    }
+  }
+  if(e.key==='f'||e.key==='F'){
+    e.preventDefault();
+    if(dialog){ if(archiveState==='restored') archiveState=null; if(bottleState==='choice') bottleState=null; closeDialog(); return; }
+    if(pwDialog){ submitPw(); return; }
+    if(interactionHint){
+      handleInteraction(interactionHint);
+    }
+  }
+  if(e.key==='Escape'){
+    if(dialog){ if(archiveState==='choice' || archiveState==='restored') archiveState=null; if(bottleState==='choice') bottleState=null; closeDialog(); }
+    if(pwDialog) closePwDialog();
+  }
+  // Prevent default for game keys
+  if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','f','F'].includes(e.key)){
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup',function(e){ keys[e.key.toLowerCase()]=false; });
+
+// ── Collision ──
+function collides(rx,ry,rw,rh){
+  for(var i=0;i<walls.length;i++){
+    var w=walls[i];
+    if(rx<w.x+w.w && rx+rw>w.x && ry<w.y+w.h && ry+rh>w.y) return true;
+  }
+  // Also check building bounds
+  if(rx<B.L || rx+rw>B.R) return true;
+  if(ry<B.T || ry+rh>B.B) return true;
+  return false;
+}
+
+function inDoor(px,py,door){
+  return px+player.w/2 >= door.x && px+player.w/2 <= door.x+door.w &&
+         py+player.h   >= door.y && py              <= door.y+door.h;
+}
+
+function nearZone(px,py,zone){
+  var cx=px+player.w/2, cy=py+player.h/2;
+  var zcx=zone.x+zone.w/2, zcy=zone.y+zone.h/2;
+  var dx=Math.abs(cx-zcx), dy=Math.abs(cy-zcy);
+  return dx<zone.w/2+20 && dy<zone.h/2+30;
+}
+
+// ── Interaction ──
+var computerBusy = false;   // 防止电脑交互在跳转延迟内被重复触发
+function handleInteraction(hint){
+  if(hint.type==='password'){
+    // 追逐战拉完4闸后回到一楼，大门密码自动失效：直接开门 → 好结局
+    if(hint.id==='gate'){
+      var chaseSolved=false;
+      var visitedMap8=false;
+      try{ chaseSolved=sessionStorage.getItem('xyzh_chase_solved')==='1'; }catch(e){}
+      try{ visitedMap8=sessionStorage.getItem('visitedMap8')==='1'; }catch(e){}
+    if(chaseSolved){
+      // 立即取消追逐战并跳转，不留任何延迟
+      try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+      if(typeof BGM!=='undefined' && BGM.stopChase) BGM.stopChase();
+      if(typeof BGM!=='undefined') BGM.tryPlaySwitchSound();
+      // 移除大门（墙体+门），防止继续交互
+      for(var i=walls.length-1;i>=0;i--){
+        if(walls[i].y===B.B-4 && (walls[i].x===B.L || walls[i].x===gateX+gateW)){
+          walls.splice(i,1);
+        }
+      }
+      for(var i=doors.length-1;i>=0;i--){
+        if(doors[i].id==='gate'){ doors.splice(i,1); break; }
+      }
+      for(var i=interactZones.length-1;i>=0;i--){
+        if(interactZones[i].id==='gate'){ interactZones.splice(i,1); break; }
+      }
+      gateLocked=false;
+      // 进入过 map8 → 彩蛋结局；否则（如 mp5 追逐后）→ 好结局
+      if(visitedMap8){
+        go('egg_ending.html');
+      }else{
+        go('good_ending.html');
+      }
+      return;
+    }
+    }
+    openPwDialog(hint.id, hint.pw, hint.docId);
+  }else if(hint.type==='doc'){
+    if(hint.id==='side_breaker'){
+      var bp=false, rp=false;
+      try{ bp=sessionStorage.getItem('breakerOff')==='1'; }catch(e){}
+      if(bp){
+        // 已拉下电闸
+        try{ rp=sessionStorage.getItem('redPressed')==='1'; }catch(e){}
+        if(rp){
+          // 已拉闸且已按红色按钮 → 好结局
+          try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+          BGM.tryPlaySwitchSound();
+          go('good_ending.html');
+          return;
+        }else{
+          // 已拉闸但未按红色按钮，直接出去 → 坏结局
+          try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+          BGM.tryPlaySwitchSound();
+          go('bad_ending.html');
+          return;
+        }
+      }
+    }
+    var d=docs[hint.docId];
+    if(d) {
+      if(hint.id==='doc_archive'){
+        archiveState='choice';
+        openDialog('档案储物间 — 学生处分记录','你在处分记录本的夹层里发现一叠被撕下的纸页。\n纸页标题是《不为人知的真相····？》。\n\n是否将学校论坛归档？');
+      }else if(hint.id==='room_101'){
+        openDialog(d.title, d.text); dialog.special='room101'; BGM.tryPlaySwitchSound();
+      }else{
+        openDialog(d.title, d.text); BGM.tryPlaySwitchSound();
+      }
+    }
+  }else if(hint.type==='computer'){
+    if(computerBusy) return;          // 已在处理中，忽略重复触发
+    computerBusy = true;
+    BGM.playComputer();               // 先播放电脑音效
+    sessionStorage.setItem('mapReturn','102');
+    // 延迟跳转，确保电脑音效能完整播完再进入电脑页（避免页面瞬间卸载掐断声音）
+    setTimeout(function(){ go('index.html'); }, 1200);
+    return;
+  }else if(hint.type==='stairs'){
+    if(chaser){
+      // 追逐中：取消黑屏间隔，立即上楼并保持黑影连续
+      saveChaserRel();
+      sessionStorage.setItem('mapReturn','stairs');
+      go('map2.html');
+    }else{
+      BGM.playStair(function(){
+        sessionStorage.setItem('mapReturn','stairs');
+        go('map2.html');
+      });
+    }
+  }else if(hint.type==='sideStairs'){
+    // 侧门通道 → 地下配电迷宫（需先拉下总电闸）
+    var bp=false;
+    try{ bp=sessionStorage.getItem('breakerOff')==='1'; }catch(e){}
+    if(!bp){
+      tip('这个应急配电室好像只有在总闸门被拉下后才会紧急开启入口·····听说配电室在三楼 可从来没有人见过');
+      return;
+    }
+    // 追逐战路径必须瞬间跳转：不播下楼过渡音效，直接跳到 mp5
+    try{ BGM.tryPlaySwitchSound(); }catch(e){}
+    go('mp5.html');
+  }else if(hint.id==='room_103'){
+    var d=docs.room103;
+    if(d) { openDialog(d.title, d.text); dialog.special='room103'; BGM.tryPlaySwitchSound(); }
+  }else if(hint.id==='redBottle'){
+    bottleState='choice';
+    openDialog('红色药瓶','你捡起一瓶红色药剂。\n王伯的笔记警告过：绝对不要触碰医务室红色瓶装药剂，接触会加重幻觉缠身。\n\n是否要吞服红色药物？');
+    BGM.tryPlaySwitchSound();
+  }else if(hint.id==='exit_side'){
+    tip('室外通道暂时无法通行');
+  }
+}
+
+function findInteraction(){
+  interactionHint=null;
+  // Check red bottle first (highest priority)
+  if(redBottle){
+    var cx=player.x+player.w/2, cy=player.y+player.h/2;
+    var bx=redBottle.x+4, by=redBottle.y+7;
+    if(Math.abs(cx-bx)<16 && Math.abs(cy-by)<16){
+      interactionHint={id:'redBottle',label:'红色药瓶',type:'bottle'};
+      return;
+    }
+  }
+  // Check doors
+  for(var i=0;i<doors.length;i++){
+    var d=doors[i];
+    if(inDoor(player.x,player.y,d)){
+      interactionHint=d;
+      return;
+    }
+  }
+  // Check interact zones
+  for(var i=0;i<interactZones.length;i++){
+    var z=interactZones[i];
+    if(nearZone(player.x,player.y,z)){
+      interactionHint=z;
+      return;
+    }
+  }
+}
+
+// ── Dialog ──
+function openDialog(title,text){
+  dialog={title:title,text:text};
+}
+function closeDialog(){ dialog=null; }
+
+function openPwDialog(id,pw,docId){
+  pwDialog={targetId:id,correct:pw,docId:docId,input:'',error:'',justOpened:true};
+}
+function closePwDialog(){ pwDialog=null; }
+function submitPw(){
+  var p=pwDialog;
+  if(p.targetId==='gate'){
+    if(p.input===p.correct){
+      // 密码正确：移除大门（墙体+门），之后不再能弹出密码框
+      for(var i=walls.length-1;i>=0;i--){
+        if(walls[i].y===B.B-4 && (walls[i].x===B.L || walls[i].x===gateX+gateW)){
+          walls.splice(i,1);
+        }
+      }
+      for(var i=doors.length-1;i>=0;i--){
+        if(doors[i].id==='gate'){ doors.splice(i,1); break; }
+      }
+      for(var i=interactZones.length-1;i>=0;i--){
+        if(interactZones[i].id==='gate'){ interactZones.splice(i,1); break; }
+      }
+      gateLocked=false;
+      pwDialog=null;
+      tip('大门打开了……你选择了逃离');
+      screenShake=12;
+      BGM.tryPlaySwitchSound();
+      // 仅跳转，不在此自动播放动画；动画由 bad_ending.html 底部「刷新页面」触发
+      setTimeout(function(){ go('bad_ending.html'); }, 2500);
+    }else{
+      p.error='密码错误，大门纹丝不动';
+      p.input='';
+    }
+    return;
+  }
+  if(p.input===p.correct){
+    pwDialog=null;
+    if(p.targetId==='pwd_jiaowu'){ jiaowuUnlocked=true; redBottle={x:player.x+20, y:player.y+10}; }
+    if(p.targetId==='pwd_monitor'){
+      monitorUnlocked=true;
+      triggerJumpscare();
+      return;
+    }
+    if(p.targetId==='doc_archive'){
+      archiveState='choice';
+      openDialog('档案储物间 — 学生处分记录','你在处分记录本的夹层里发现一叠被撕下的纸页。\n纸页标题是《不为人知的真相····？》。\n\n是否将学校论坛归档？');
+    }else{
+      var d=docs[p.docId];
+      if(d) { openDialog(d.title,d.text); BGM.tryPlaySwitchSound(); }
+    }
+  }else{
+    p.error='密码错误';
+    p.input='';
+  }
+}
+
+// ── 跳脸惊吓系统 ──
+function triggerJumpscare(){
+  var overlay=document.getElementById('jumpscare-overlay');
+  var flash=document.getElementById('jumpscare-flash');
+  // 播放惊悚尖叫音效
+  playJumpscareSound();
+  // 激活跳脸画面
+  overlay.classList.add('active');
+  // 全屏闪白 0.3 秒
+  flash.classList.add('active');
+  setTimeout(function(){ flash.classList.remove('active'); },300);
+  screenShake=60;
+  // 2 秒后自动关闭
+  setTimeout(function(){
+    overlay.classList.remove('active');
+    screenShake=0;
+    var d=docs['monitor'];
+    if(d) openDialog(d.title,d.text);
+  },2000);
+  // 点击可提前关闭
+  overlay.onclick=function(){
+    overlay.classList.remove('active');
+    flash.classList.remove('active');
+    screenShake=0;
+    overlay.onclick=null;
+  };
+}
+
+// ── 跳脸音效预加载 ──
+var jumpscareBuffer=null;
+(function preloadJumpscare(){
+  try{
+    var req=new XMLHttpRequest();
+    req.open('GET','惨叫女鬼叫_爱给网_aigei_com.mp3',true);
+    req.responseType='arraybuffer';
+    req.onload=function(){
+      if(req.status===200||req.status===0){
+        (new(window.AudioContext||window.webkitAudioContext)()).decodeAudioData(
+          req.response,
+          function(buf){ jumpscareBuffer=buf; },
+          function(){}
+        );
+      }
+    };
+    req.send();
+  }catch(e){}
+})();
+
+function playJumpscareSound(){
+  try{
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    if(ctx.state==='suspended') ctx.resume();
+    if(jumpscareBuffer){
+      var src=ctx.createBufferSource();
+      src.buffer=jumpscareBuffer;
+      var gain=ctx.createGain();
+      gain.gain.value=1.0;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(0);
+    }else{
+      // 预加载未完成时fallback
+      var audio=new Audio('惨叫女鬼叫_爱给网_aigei_com.mp3');
+      audio.volume=1.0;
+      audio.play().catch(function(){});
+    }
+  }catch(e){}
+}
+
+function tip(msg){ tipText=msg; tipTimer=90; }
+
+// ── Update ──
+function update(){
+  if(typeof GameTime!=='undefined') GameTime.tick();
+  if(caughtDeath){
+    if(caughtTimer>0) caughtTimer--;
+    if(caughtTimer<=0) go('start.html');
+    return;
+  }
+  // Movement
+  var mx=0,my=0;
+  if(keys['w']||keys['arrowup']) my=-1;
+  if(keys['s']||keys['arrowdown']) my=1;
+  if(keys['a']||keys['arrowleft']) mx=-1;
+  if(keys['d']||keys['arrowright']) mx=1;
+
+  if(mx!==0&&my!==0){ mx*=0.707;my*=0.707; }
+
+  var moving=mx!==0||my!==0;
+
+  if(moving){
+    // Try move X
+    var nx=player.x+mx*player.speed;
+    if(!collides(nx,player.y,player.w,player.h)) player.x=nx;
+    // Try move Y
+    var ny=player.y+my*player.speed;
+    if(!collides(player.x,ny,player.w,player.h)) player.y=ny;
+
+    // Facing
+    if(Math.abs(mx)>Math.abs(my)){ player.facing=mx>0?3:2; }
+    else if(my!==0){ player.facing=my>0?0:1; }
+    player.walkTimer++;
+    if(player.walkTimer>12){ player.frame=(player.frame+1)%2; player.walkTimer=0; }
+    
+    Footsteps.update(true, player.walkTimer);
+  }else{
+    player.frame=0;
+    player.walkTimer=0;
+    
+    Footsteps.update(false, 0);
+  }
+
+  // Check interactions
+  findInteraction();
+  updateChaser();
+
+
+  // Tip timer
+  if(tipTimer>0) tipTimer--;
+  if(tipTimer<=0) tipText='';
+
+  // Screen shake
+  if(screenShake>0 && !shakePermanent) screenShake--;
+  if(shakePermanent && screenShake<20) screenShake=30; // 持续抽搐
+
+  // Fast shadow spawn / move / despawn
+  if(fastShadow){
+    fastShadow.x+=fastShadow.vx;
+    fastShadow.y+=fastShadow.vy;
+    fastShadow.timer--;
+    // Clamp within building bounds
+    if(fastShadow.x<B.L){ fastShadow.x=B.L; fastShadow.vx*=-1; }
+    if(fastShadow.x+fastShadow.w>B.R){ fastShadow.x=B.R-fastShadow.w; fastShadow.vx*=-1; }
+    if(fastShadow.y<B.T){ fastShadow.y=B.T; fastShadow.vy*=-1; }
+    if(fastShadow.y+fastShadow.h>B.B){ fastShadow.y=B.B-fastShadow.h; fastShadow.vy*=-1; }
+    if(fastShadow.timer<=0) fastShadow=null;
+  }else if(fastShadowCooldown>0){
+    fastShadowCooldown--;
+  }else{
+    fastShadowCooldown=Math.floor(Math.random()*(25200-18000+1))+18000;
+    // 5~7分钟必定生成黑影（不再有 5% 随机概率）
+    var sx,sy;
+    var side=Math.floor(Math.random()*4);
+    if(side===0){ sx=B.L; sy=B.T+Math.random()*(B.B-B.T-24); }
+    else if(side===1){ sx=B.R-18; sy=B.T+Math.random()*(B.B-B.T-24); }
+    else if(side===2){ sx=B.L+Math.random()*(B.R-B.L-18); sy=B.T; }
+    else{ sx=B.L+Math.random()*(B.R-B.L-18); sy=B.B-24; }
+    var angle=Math.random()*Math.PI*2;
+    var speed=9+Math.random()*6; // 3倍速
+    fastShadow={x:sx,y:sy,w:18,h:24,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,timer:120}; // 2秒
+  }
+}
+
+// ── Draw ──
+function pxRect(x,y,w,h,c){
+  ctx.fillStyle=c;
+  ctx.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h));
+}
+
+function pxText(text,x,y,c,size,align){
+  ctx.fillStyle=c||P.TEXT;
+  ctx.font=(size||12)+'px "Courier New","SimSun",monospace';
+  ctx.textAlign=align||'left';
+  ctx.textBaseline='top';
+  ctx.fillText(text,x,y);
+}
+
+function drawBorder(x,y,w,h,c,t){
+  t=t||2;
+  pxRect(x,y,w,t,c); pxRect(x,y+h-t,w,t,c);
+  pxRect(x,y,t,h,c);   pxRect(x+w-t,y,t,h,c);
+}
+
+// ── 右上角时间系统 HUD（统一 UI） ──
+function drawTimeHUD(){
+  if(typeof GameTime==='undefined') return;
+  var t=GameTime.label();
+  if(!t) return;
+  var txt='时间 '+t;
+  var pw=txt.length*8+16;
+  var ph=18;
+  var px=W-pw-8, py=4;
+  pxRect(px,py,pw,ph,'rgba(12,10,6,0.88)');
+  drawBorder(px,py,pw,ph,'#b8902f');
+  pxText(txt,px+pw/2,py+5,'#ffe9a8',9,'center');
+}
+
+function drawRoom(x,y,w,h,label,color){
+  var c=color||P.ROOM;
+  pxRect(x,y,w,h,c);
+  drawBorder(x,y,w,h,P.WALL2);
+  // Labels drawn separately to avoid ghosting
+}
+
+// Draw pixel character
+function drawPlayer(px,py){
+  var ox=Math.floor(px);
+  var oy=Math.floor(py);
+  var pw=12,ph=18;
+  var f=player.facing; // 0=down 1=up 2=left 3=right
+
+  // Shadow
+  pxRect(ox+2,oy+ph-2,10,2,'rgba(0,0,0,0.5)');
+
+  // Legs
+  var legOff=player.frame*2;
+  if(f===0){ // facing down
+    pxRect(ox+2,oy+11,3,5,P.PLAYER); // left leg
+    pxRect(ox+7,oy+11,3,5,P.PLAYER); // right leg
+    if(player.frame===0){ pxRect(ox+2,oy+13+legOff,3,3,'#444'); pxRect(ox+7,oy+13-legOff,3,3,'#444'); }
+    else { pxRect(ox+2,oy+13-legOff,3,3,'#444'); pxRect(ox+7,oy+13+legOff,3,3,'#444'); }
+  }else if(f===1){ // facing up
+    pxRect(ox+2,oy+11,3,5,P.PLAYER);
+    pxRect(ox+7,oy+11,3,5,P.PLAYER);
+  }else{ // side
+    pxRect(ox+2,oy+11,3,5,P.PLAYER);
+    pxRect(ox+7,oy+11,3,5,P.PLAYER);
+    if(player.frame===0) pxRect(ox+2,oy+13+legOff,3,3,'#444');
+    else pxRect(ox+7,oy+13+legOff,3,3,'#444');
+  }
+
+  // Body
+  pxRect(ox+2,oy+6,8,7,'#777');
+  pxRect(ox+3,oy+6,6,7,P.PLAYER);
+
+  // Arms
+  if(f===2){ pxRect(ox,oy+7,3,4,P.PLAYER); } // left
+  else if(f===3){ pxRect(ox+9,oy+7,3,4,P.PLAYER); } // right
+  else{ pxRect(ox,oy+7,3,4,P.PLAYER); pxRect(ox+9,oy+7,3,4,P.PLAYER); }
+
+  // Head
+  pxRect(ox+3,oy,6,7,P.PLAYER2);
+  pxRect(ox+4,oy+1,4,5,'#ddd');
+  // Eyes
+  if(f===0){ pxRect(ox+5,oy+3,1,1,'#222');pxRect(ox+8,oy+3,1,1,'#222'); }
+  else if(f===1){ pxRect(ox+5,oy+2,1,1,'#222');pxRect(ox+8,oy+2,1,1,'#222'); }
+  else if(f===2){ pxRect(ox+4,oy+3,1,1,'#222'); }
+  else{ pxRect(ox+9,oy+3,1,1,'#222'); }
+  // Hair
+  pxRect(ox+3,oy,6,2,'#555');
+}
+
+// Draw door on walls
+function drawDoor(d){
+  var highlight=interactionHint&&interactionHint===d;
+  var dc=highlight?P.INTERACT:P.DOOR;
+  if(d.id==='gate' && gateLocked){
+    // metal gate bars
+    pxRect(d.x,d.y,d.w,d.h,'#2a2a2a');
+    var barW=4, gap=(d.w-barW*4)/3;
+    for(var i=0;i<4;i++){
+      pxRect(d.x+i*(barW+gap),d.y,barW,d.h,'#555');
+    }
+    if(highlight){
+      var t=Math.sin(Date.now()*0.005)*0.3+0.5;
+      drawBorder(d.x-2,d.y-2,d.w+4,d.h+4,'rgba(255,255,255,'+t+')',1);
+    }
+    return;
+  }
+  pxRect(d.x,d.y,d.w,d.h,dc);
+  if(highlight){
+    // Pulsing border
+    var t=Math.sin(Date.now()*0.005)*0.3+0.5;
+    drawBorder(d.x-2,d.y-2,d.w+4,d.h+4,'rgba(255,255,255,'+t+')',1);
+  }
+}
+
+// Draw CRT computer
+function drawCRT(cx,cy){
+  // Desk
+  pxRect(cx,cy+26,40,6,'#2a2a2a');
+  // Monitor body
+  pxRect(cx+6,cy,28,22,P.CRT_BODY);
+  pxRect(cx+4,cy+2,32,2,P.CRT_BODY); // top bezel
+  // Screen
+  pxRect(cx+10,cy+4,20,14,P.CRT_SCREEN);
+  // Glow
+  pxRect(cx+10,cy+4,20,1,'rgba(80,220,80,0.4)');
+  // Stand
+  pxRect(cx+16,cy+22,8,4,'#2a2a2a');
+  pxRect(cx+14,cy+26,12,2,'#2a2a2a');
+  // Tower
+  pxRect(cx-6,cy+20,8,14,'#222');
+  pxRect(cx-5,cy+21,6,2,'#111');
+}
+
+// Draw pixel item (for room decorations)
+// 追逐黑影：伸长的暗色人形，带微弱红光描边
+function drawChaser(){
+  if(!chaser) return;
+  pxRect(chaser.x, chaser.y, chaser.w, chaser.h, '#000');
+  pxRect(chaser.x+chaser.w/2-2, chaser.y-9, 4, 10, '#000');
+  var glow=Math.sin(Date.now()*0.01)*0.25+0.4;
+  ctx.strokeStyle='rgba(140,0,0,'+glow+')';
+  ctx.lineWidth=2;
+  ctx.strokeRect(chaser.x-1, chaser.y-10, chaser.w+2, chaser.h+10);
+}
+
+// 黑影追逐：无视地图碰撞，速度略慢于主角，抓捕即死
+function updateChaser(){
+  if(!chaser) return;
+  if(chaserDelay>0){ chaserDelay--; return; } // 延迟期间静止
+  var ps=player.speed*CHASE_CHASER_RATIO;
+  var pcx=player.x+player.w/2, pcy=player.y+player.h/2;
+  var ccx=chaser.x+chaser.w/2, ccy=chaser.y+chaser.h/2;
+  var dx=pcx-ccx, dy=pcy-ccy;
+  var dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist>0){ chaser.vx=dx/dist*ps; chaser.vy=dy/dist*ps; }
+  chaser.x+=chaser.vx; chaser.y+=chaser.vy;
+  if(chaser.x<player.x+player.w && chaser.x+chaser.w>player.x &&
+     chaser.y<player.y+player.h && chaser.y+chaser.h>player.y){
+    triggerChaserDeath();
+  }
+}
+
+// 被黑影追上：定格、浮现红色大字"你死了"，存档后返回标题
+var caughtDeath=false;        // 被黑影追上：浮现"你死了"后跳转
+var caughtTimer=0;            // 定格倒计时（帧）
+function triggerChaserDeath(){
+  if(caughtDeath) return;
+  caughtDeath=true;
+  try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+  if(chaser){ chaser.x=player.x+player.w/2-chaser.w/2; chaser.y=player.y+player.h/2-chaser.h/2; }
+  if(typeof SaveSystem!=='undefined') SaveSystem.saveCurrent();
+  caughtTimer=110; // 约 1.8 秒后跳转
+}
+
+function drawChaserDeath(){
+  if(!caughtDeath) return;
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  var t=110-caughtTimer;
+  var a=Math.min(1,t/25);            // 渐显
+  pxRect(0,0,W,H,'rgba(0,0,0,'+(0.55+0.4*a)+')');
+  ctx.fillStyle='rgba(210,0,0,'+a+')';
+  ctx.font='bold 60px "Courier New","SimSun",monospace';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillText('你死了',W/2,H/2);
+  ctx.restore();
+}
+
+// 101教室 — 黑板 + 黑板正上方的挂钟（对话框内自定义画面）
+function drawRoom101Scene(dx,dy,dw,dh){
+  // 老式挂钟（黑板正上方，指针停摆）
+  var cx=dx+dw/2, cy=dy+56, r=20;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.fillStyle='#0d0d0d'; ctx.fill();
+  ctx.strokeStyle='#7a7a66'; ctx.lineWidth=2; ctx.stroke();
+  ctx.strokeStyle='#8a8a78'; ctx.lineWidth=1;
+  for(var k=0;k<12;k++){
+    var a=k/12*Math.PI*2;
+    var x1=cx+Math.sin(a)*(r-3), y1=cy-Math.cos(a)*(r-3);
+    var x2=cx+Math.sin(a)*(r-1), y2=cy-Math.cos(a)*(r-1);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  }
+  // 指针（停摆：时针指在 6，分针指在 2）
+  var ha=(6/12)*Math.PI*2, ma=(10/60)*Math.PI*2;
+  ctx.strokeStyle='#cfcfcf'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.sin(ha)*(r-7), cy-Math.cos(ha)*(r-7)); ctx.stroke();
+  ctx.strokeStyle='#9a9a88'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.sin(ma)*(r-3), cy-Math.cos(ma)*(r-3)); ctx.stroke();
+  ctx.fillStyle='#cfcfcf'; ctx.beginPath(); ctx.arc(cx,cy,2,0,Math.PI*2); ctx.fill();
+
+  // 黑板（下方）—— 破旧质感，整体向右微倾
+  var bx=dx+50, by=dy+90, bw=dw-100, bh=130;
+  var bcx=bx+bw/2, bcy=by+bh/2;
+  ctx.save();
+  ctx.translate(bcx,bcy); ctx.rotate(0.075); ctx.translate(-bcx,-bcy); // 斜向右
+  // 板面底色（斑驳：多处深浅不一的粉笔灰痕）
+  pxRect(bx,by,bw,bh,'#10160f');
+  // 旧粉笔灰雾
+  ctx.fillStyle='rgba(120,130,110,0.06)';
+  for(var s=0;s<5;s++){ ctx.fillRect(bx+8+s*((bw-16)/5), by+14+((s*37)%90), 60, 26); }
+  // 大块擦不干净的旧字迹
+  ctx.fillStyle='rgba(150,160,140,0.05)';
+  ctx.fillRect(bx+30, by+46, 90, 40);
+  ctx.fillRect(bx+bw-120, by+70, 70, 30);
+  // 划痕 / 裂纹
+  ctx.strokeStyle='rgba(70,70,60,0.5)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(bx+12,by+18); ctx.lineTo(bx+40,by+64);
+  ctx.moveTo(bx+bw-20,by+30); ctx.lineTo(bx+bw-70,by+100);
+  ctx.moveTo(bx+60,by+bh-10); ctx.lineTo(bx+110,by+22);
+  ctx.moveTo(bx+bw-40,by+bh-6); ctx.lineTo(bx+bw-90,by+40);
+  ctx.stroke();
+  // 缺角（黑板被磕掉一块）
+  pxRect(bx+bw-14,by+bh-14,14,14,'#0a0a0a');
+  // 边框（朽木，深浅不均）
+  drawBorder(bx,by,bw,bh,'#3a2a18',4);
+  ctx.strokeStyle='rgba(90,70,40,0.6)'; ctx.lineWidth=1;
+  ctx.strokeRect(bx+2,by+2,bw-4,bh-4);
+
+  // 粉笔字 0 5 7 1：手写体；5 和 1 划掉（更明显），其余正常
+  var handFont='bold 44px "Ink Free","Comic Sans MS","Segoe Script","华文行楷","KaiTi",cursive';
+  var digits=['0','5','7','1'];
+  var crossed=[false,true,false,true];
+  var jit=[0,4,-3,2];                       // 轻微抖动，更像手写
+  var gap=bw/5;
+  for(var i=0;i<4;i++){
+    var dxx=bx+gap*(i+1)+jit[i];
+    ctx.save();
+    ctx.font=handFont;
+    ctx.fillStyle='#e3ebdc';
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText(digits[i], dxx, by+36+(i%2?3:0));
+    ctx.restore();
+    if(crossed[i]){
+      // 划掉：又粗又明显的红色粉笔交叉斜线盖在字上
+      ctx.save();
+      ctx.strokeStyle='#c33a2a'; ctx.lineWidth=4; ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(dxx-16,by+38); ctx.lineTo(dxx+16,by+92);
+      ctx.moveTo(dxx+16,by+38); ctx.lineTo(dxx-16,by+92);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  ctx.restore(); // 结束黑板倾斜
+
+  pxText('黑板正上方挂着一只老式挂钟，指针早已停摆', dx+dw/2, by+bh+16, '#9a8a6a', 10, 'center');
+}
+
+function drawItem(x,y,type){
+  if(type==='desk'){ pxRect(x,y,12,6,'#2a2a2a'); pxRect(x-2,y+6,16,2,'#222'); }
+  else if(type==='chair'){ pxRect(x,y,8,8,'#222');pxRect(x+2,y-2,4,2,'#222'); }
+  else if(type==='plant'){ pxRect(x,y,6,10,'#1a2a1a');pxRect(x-1,y,8,4,'#1a301a'); }
+  else if(type==='board'){ drawBorder(x,y,20,12,'#3a3a30',1);pxRect(x+2,y+2,16,8,'#1a1a18');pxText('公 告',x+10,y+4,'#555',7,'center'); }
+  else if(type==='locker'){ pxRect(x,y,8,14,'#222');drawBorder(x,y,8,14,'#333',1);pxRect(x+4,y+4,2,2,'#444'); }
+}
+
+// ── Render ──
+function render(){
+  ctx.clearRect(0,0,W,H);
+
+  var sx=screenShake>0?(Math.random()-0.5)*screenShake:0;
+  var sy=screenShake>0?(Math.random()-0.5)*screenShake:0;
+  ctx.save();
+  ctx.translate(sx,sy);
+
+  // Floor
+  pxRect(B.L,B.T,B.R-B.L,B.B-B.T,P.FLOOR);
+
+  // Draw rooms - Top row
+  for(var i=0;i<cols.length;i++){
+    var c=cols[i];
+    var color=P.ROOM;
+    if(c.td==='pwd_jiaowu') color=jiaowuUnlocked?'#141a14':'#1c1810';
+    else if(c.td==='pwd_monitor') color=monitorUnlocked?'#141a14':'#101418';
+    if(c.bp){
+      drawRoom(c.x,roomTopY,c.w,roomTopH+gapH+roomBotH,c.t||c.b,color);
+    }else{
+      drawRoom(c.x,roomTopY,c.w,roomTopH,c.t,color);
+    }
+  }
+
+  // Corridor
+  pxRect(B.L,gapY,B.R-B.L,gapH,P.CORR);
+  pxText('走  廊',B.L+CW/2+1,gapY+gapH/2-6+1,'#000',9,'center');
+  pxText('走  廊',B.L+CW/2,gapY+gapH/2-6,'#888',9,'center');
+
+  // Bottom rooms
+  for(var i=0;i<cols.length;i++){
+    var c=cols[i];
+    if(c.bp) continue; // already drawn spanning
+    var color=P.ROOM;
+    if(c.bd==='doc_archive') color='#141a14';
+    else if(c.bd==='doc_wang') color='#141a14';
+    else if(i===0) color='#181818'; // 102 with computer
+    drawRoom(c.x,roomBotY,c.w,roomBotH,c.b,color);
+  }
+
+  // Hall
+  pxRect(B.L,hallY,B.R-B.L,hallH,P.HALL);
+  pxText('一  楼  大  厅',B.L+CW/2+1,hallY+hallH/2-7+1,'#000',12,'center');
+  pxText('一  楼  大  厅',B.L+CW/2,hallY+hallH/2-7,'#aaa',12,'center');
+
+  // Draw doors
+  for(var i=0;i<doors.length;i++) drawDoor(doors[i]);
+
+  // Draw room labels - clear, no ghosting
+  for(var i=0;i<cols.length;i++){
+    var c=cols[i];
+    if(!c.bp){
+      var lc=c.td==='pwd_jiaowu'?(jiaowuUnlocked?'#6a8a6a':'#9a8a5a'):
+              c.td==='pwd_monitor'?(monitorUnlocked?'#6a8a6a':'#6a7a9a'):'#aaa';
+      // dark outline for clarity
+      pxText(c.t,c.x+c.w/2+1,roomTopY+13+1,'#000',11,'center');
+      pxText(c.t,c.x+c.w/2,roomTopY+13,lc,11,'center');
+    }
+    if(!c.bp && c.b){
+      var lc2=c.bd==='doc_archive'?'#6a8a6a':c.bd==='doc_wang'?'#6a8a6a':'#aaa';
+      pxText(c.b,c.x+c.w/2+1,roomBotY+13+1,'#000',11,'center');
+      pxText(c.b,c.x+c.w/2,roomBotY+13,lc2,11,'center');
+    }
+    if(c.bp){
+      pxText(c.t||c.b,c.x+c.w/2+1,roomTopY+(roomTopH+gapH+roomBotH)/2-6+1,'#000',11,'center');
+      pxText(c.t||c.b,c.x+c.w/2,roomTopY+(roomTopH+gapH+roomBotH)/2-6,'#aaa',11,'center');
+    }
+  }
+
+  // Draw items in rooms
+  // 102 - CRT computer
+  drawCRT(cols[0].x+cols[0].w/2-16,roomBotY+roomBotH/2-15);
+  // 101 教室 — 墙上黑板（提示可调查）
+  (function(){
+    var bxx=cols[0].x+cols[0].w/2-34, byy=roomTopY+24;
+    pxRect(bxx,byy,68,30,'#10160f');
+    drawBorder(bxx,byy,68,30,'#3a2a18',2);
+    pxText('黑板',bxx+34,byy+10,'#5a6a52',9,'center');
+  })();
+  // Archive - cabinet
+  drawItem(cols[3].x+55,roomBotY+30,'cabinet');
+  // Wang's office - desk
+  drawItem(cols[4].x+55,roomBotY+40,'desk');
+  drawItem(cols[4].x+40,roomBotY+38,'chair');
+  // Hall - bulletin board
+  drawItem(B.L+CW/2-10,hallY+hallH-20,'board');
+  // Monitor room - locker
+  drawItem(cols[4].x+55,roomTopY+30,'locker');
+  drawItem(cols[4].x+40,roomTopY+28,'desk');
+  // 医务室 - desk
+  drawItem(cols[3].x+55,roomTopY+35,'desk');
+  // Stairs icon
+  pxRect(cols[2].x+30,roomTopY+20,20,roomTopH+gapH+roomBotH-40,'#1a1a18');
+  for(var syy=0;syy<5;syy++){ pxRect(cols[2].x+30,roomTopY+25+syy*16,20,6,'#2a2a2a'); }
+  // Plants near entrance
+  drawItem(B.L+20,hallY+hallH-18,'plant');
+  drawItem(B.R-26,hallY+hallH-18,'plant');
+
+  // Draw walls on top (overlay)
+  for(var i=0;i<walls.length;i++){
+    var w=walls[i];
+    pxRect(w.x,w.y,w.w,w.h,P.WALL3);
+  }
+  // Redraw outer border thicker
+  drawBorder(B.L,B.T,B.R-B.L,B.B-B.T,P.WALL3,4);
+
+  // Draw player
+  drawPlayer(player.x,player.y);
+
+  // Red bottle (spawned after infirmary unlocked)
+  if(redBottle){
+    var bx=redBottle.x, by=redBottle.y;
+    // Bottle body
+    pxRect(bx,by+4,8,10,'#cc2222');
+    drawBorder(bx,by+4,8,10,'#881111',1);
+    // Bottle cap
+    pxRect(bx+1,by,6,4,'#555');
+    // Cross mark
+    pxRect(bx+3,by+6,2,6,'#fff');
+    pxRect(bx+1,by+8,6,2,'#fff');
+  }
+
+  // Chaser shadow
+  drawChaser();
+
+  // Fast shadow (random event, flickering ghost)
+  if(fastShadow){
+    var fsAlpha=Math.sin(Date.now()*0.02)*0.3+0.5;
+    pxRect(fastShadow.x,fastShadow.y,fastShadow.w,fastShadow.h,'rgba(0,0,0,'+fsAlpha+')');
+    pxRect(fastShadow.x+fastShadow.w/2-2,fastShadow.y-9,4,10,'rgba(0,0,0,'+fsAlpha+')');
+  }
+
+  // Interaction hint above player
+  if(interactionHint && !dialog && !pwDialog){
+    var hintLabel=interactionHint.label||'';
+    var hintY=player.y-14;
+    var tw=hintLabel.length*7;
+    pxRect(player.x+player.w/2-tw/2-4,hintY-2,tw+8,12,'rgba(0,0,0,0.8)');
+    pxText('[F] '+hintLabel,player.x+player.w/2,hintY,'#fff',8,'center');
+  }
+
+  ctx.restore();
+
+  // Darkness / visibility overlay (player-only light)
+  var px=player.x+player.w/2;
+  var py=player.y+player.h/2;
+  var grad=ctx.createRadialGradient(px,py,35,px,py,240);
+  grad.addColorStop(0,'rgba(0,0,0,0)');
+  grad.addColorStop(0.20,'rgba(0,0,0,0.45)');
+  grad.addColorStop(0.45,'rgba(0,0,0,0.80)');
+  grad.addColorStop(0.70,'rgba(0,0,0,0.95)');
+  grad.addColorStop(1,'rgba(0,0,0,1)');
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,W,H);
+
+  // HUD (bottom)
+  pxRect(0,H-22,W,22,'rgba(0,0,0,0.7)');
+  pxText('WASD 移动   F 互动   ESC 关闭',10,H-16,P.HUD,9);
+  // Status icons
+  if(jiaowuUnlocked) pxText('医务室:解锁',W-210,H-16,P.GREEN,8,'right');
+  else pxText('教务:锁定',W-210,H-16,P.RED,8,'right');
+  if(monitorUnlocked) pxText('监控:解锁',W-120,H-16,P.GREEN,8,'right');
+  else pxText('监控:锁定',W-120,H-16,P.RED,8,'right');
+  pxText('102:电脑',W-30,H-16,P.HINT,8,'right');
+
+  // Tip text center-top
+  if(tipText){
+    var tw2=tipText.length*7;
+    pxRect(W/2-tw2/2-6,4,tw2+12,16,'rgba(0,0,0,0.85)');
+    pxText(tipText,W/2,7,'#aaa',9,'center');
+  }
+
+  // Time HUD (top-right)
+  drawTimeHUD();
+
+  // Dialog overlay
+  if(dialog){
+    // Dim background
+    pxRect(0,0,W,H,'rgba(0,0,0,0.7)');
+
+    // Dialog box
+    var dw=480,dh=280;
+    var dx=(W-dw)/2, dy=(H-dh)/2;
+    pxRect(dx,dy,dw,dh,P.DIALOG_BG);
+    drawBorder(dx,dy,dw,dh,P.DIALOG_BORDER,3);
+    // Title bar
+    pxRect(dx,dy,dw,22,'#1a1a1a');
+    drawBorder(dx,dy,dw,22,P.DIALOG_BORDER,1);
+    pxText(dialog.title,dx+dw/2,dy+5,P.DIALOG_TITLE,11,'center');
+
+    // Text (split lines, support [RED]...[/RED] markers)
+    if(dialog.special==='room101'){
+      drawRoom101Scene(dx,dy,dw,dh);
+    }else{
+      var lines=dialog.text.split('\n');
+      var inRed=false;
+      for(var li=0;li<lines.length;li++){
+        var line=lines[li];
+        if(line.indexOf('[RED]')!==-1){ inRed=true; line=line.replace('[RED]',''); }
+        if(line.indexOf('[/RED]')!==-1){ inRed=false; line=line.replace('[/RED]',''); }
+        pxText(line,dx+16,dy+30+li*16, inRed?P.RED:P.DIALOG_TEXT,11);
+      }
+    }
+
+    // Close hint / choice hint
+    if(archiveState==='choice'){
+      pxText('[Y] 是     [N] 否     [F/Esc] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    }else if(bottleState==='choice'){
+      pxText('[Y] 吞服     [N] 拒绝     [F/Esc] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    }else{
+      pxText('[F] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    }
+  }
+
+  // Password dialog
+  if(pwDialog){
+    pxRect(0,0,W,H,'rgba(0,0,0,0.75)');
+    var pw=280,ph=140;
+    var pdx=(W-pw)/2, pdy=(H-ph)/2;
+    pxRect(pdx,pdy,pw,ph,P.DIALOG_BG);
+    drawBorder(pdx,pdy,pw,ph,P.DIALOG_BORDER,3);
+    pxRect(pdx,pdy,pw,22,'#1a1a1a');
+    drawBorder(pdx,pdy,pw,22,P.DIALOG_BORDER,1);
+    pxText('密码验证',pdx+pw/2,pdy+5,P.DIALOG_TITLE,11,'center');
+
+    var tlabel=pwDialog.targetId==='gate'?'大门密码(4位):':(pwDialog.targetId==='pwd_jiaowu'?'医务室密码(4位):':(pwDialog.targetId==='doc_archive'?'档案储物间密码(4位):':(pwDialog.targetId==='doc_wang'?'门卫值班室密码(4位):':'监控系统密码(4位):')));
+    pxText(tlabel,pdx+20,pdy+40,P.DIALOG_TEXT,11);
+    // Input box
+    pxRect(pdx+20,pdy+58,180,22,'#0a0a0a');
+    drawBorder(pdx+20,pdy+58,180,22,'#555',1);
+    var display=pwDialog.input;
+    for(var di=0;di<pwDialog.input.length;di++) display=display.replace(pwDialog.input[di],'*');
+    pxText(new Array(pwDialog.input.length+1).join('*'),pdx+24,pdy+62,'#8a8a8a',13);
+    // Cursor
+    if(Math.floor(Date.now()/500)%2) pxRect(pdx+24+pwDialog.input.length*8,pdy+60,6,18,'#fff');
+
+    if(pwDialog.error){
+      pxText(pwDialog.error,pdx+20,pdy+90,P.RED,10);
+    }
+
+    pxText('[F] 确认  [Esc] 取消',pdx+pw/2,pdy+ph-26,P.HUD,9,'center');
+  }
+
+  // 全屏红色闪烁（黑影追逐期间）
+  if(redFlashOn){
+    var rf=Math.sin(Date.now()*0.006)*0.12+0.2; // 0.08~0.32 脉冲
+    pxRect(0,0,W,H,'rgba(150,0,0,'+rf+')');
+  }
+
+  // 被黑影追上："你死了"大字
+  drawChaserDeath();
+}
+
+// ── Password input handling ──
+window.addEventListener('keydown',function(e){
+  if(!pwDialog || dialog) return;
+  if(pwDialog.justOpened){ pwDialog.justOpened=false; return; }
+  if(e.key.length===1 && /^[a-zA-Z0-9]$/.test(e.key)){
+    pwDialog.input+=e.key;
+    pwDialog.error='';
+    e.preventDefault();
+  }else if(e.key==='Backspace'){
+    pwDialog.input=pwDialog.input.slice(0,-1);
+    pwDialog.error='';
+    e.preventDefault();
+  }
+});
+
+// ── Game Loop ──
+function gameLoop(){
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+// ── 脚步声系统 ──
+var Footsteps = {
+    audioCtx: null,
+    isPlaying: false,
+    lastStepTime: 0,
+    stepInterval: 250,
+    
+    init: function() {
+        try {
+            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            console.log('✅ 脚步声音频系统初始化成功');
+        } catch(e) {
+            console.error('❌ 音频初始化失败:', e);
+        }
+    },
+    
+    playStep: function() {
+        if (!this.audioCtx) this.init();
+        if (!this.audioCtx) return;
+        
+        var now = Date.now();
+        if (now - this.lastStepTime < this.stepInterval) return;
+        
+        this.lastStepTime = now;
+        
+        try {
+            const ctx = this.audioCtx;
+            const duration = 0.15;
+            
+            const buffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            for (let i = 0; i < data.length; i++) {
+                const t = i / ctx.sampleRate;
+                let sample = 0;
+                
+                if (t < 0.01) {
+                    sample = (t / 0.01) * Math.random() * 0.4;
+                } else if (t < 0.05) {
+                    sample = Math.random() * 0.5 + 0.3;
+                    sample += Math.sin(t * 400) * 0.1;
+                    sample += Math.sin(t * 1000) * 0.03;
+                } else if (t < 0.1) {
+                    const decay = (t - 0.05) / 0.05;
+                    sample = (1 - decay) * (Math.random() * 0.3 + 0.15);
+                    sample += Math.sin(t * 200) * 0.04 * (1 - decay);
+                } else if (t < duration) {
+                    const fade = (t - 0.1) / (duration - 0.1);
+                    sample = (1 - fade) * Math.random() * 0.08;
+                }
+                
+                data[i] = sample * 0.5;
+            }
+            
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            
+            const gainNode = ctx.createGain();
+            gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+            
+            source.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            source.start(0);
+            
+        } catch(e) {
+            console.warn('脚步声播放错误:', e);
+        }
+    },
+    
+    start: function() {
+        if (!this.isPlaying) {
+            this.isPlaying = true;
+            if (!this.audioCtx && typeof AudioContext !== 'undefined') {
+                this.init();
+            }
+        }
+    },
+    
+    stop: function() {
+        this.isPlaying = false;
+        this.lastStepTime = 0;
+    },
+    
+    update: function(isMoving, walkTimer) {
+        if (isMoving) {
+            this.start();
+            if (walkTimer === 0 || walkTimer % 12 === 0) {
+                this.playStep();
+            }
+        } else {
+            this.stop();
+        }
+    }
+};
+
+// 初始化脚步声系统
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('keydown', function() {
+        if (!Footsteps.audioCtx) {
+            Footsteps.init();
+        }
+    });
+});
+
+// Initial tip
+tip('WASD 移动角色，靠近房间按 F 互动');
+
+gameLoop();
+})();
+</script>
+
+<script src="time.js"></script>
+<script src="bgm.js"></script>
+<script src="save.js"></script>
+</body>
+</html>

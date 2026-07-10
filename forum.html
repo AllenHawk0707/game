@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星榆中学官方网站 - 2008</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "宋体", SimSun, serif;
+            background-color: #f5f5dc;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .header {
+            background-color: #003366;
+            color: #fff;
+            padding: 15px;
+            text-align: center;
+            position: fixed;
+            top: 46px;
+            width: 100%;
+            z-index: 1000;
+            border-bottom: 3px solid #ffcc00;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .nav {
+            background-color: #004080;
+            padding: 10px;
+            text-align: center;
+            position: fixed;
+            top: 126px;
+            width: 100%;
+            z-index: 999;
+        }
+
+        .nav a {
+            color: #fff;
+            text-decoration: none;
+            margin: 0 20px;
+            font-size: 16px;
+            border-bottom: 1px dashed transparent;
+        }
+
+        .nav a:hover {
+            border-bottom: 1px solid #fff;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 186px auto 30px;
+            padding: 20px 20px 70px 20px;
+            background-color: #fff;
+            border: 2px solid #ccc;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            background-color: #003366;
+            color: #fff;
+            padding: 10px 15px;
+            margin: 20px -20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .announcement {
+            border: 1px solid #ddd;
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #fafafa;
+            position: relative;
+        }
+
+        .announcement.important {
+            border-left: 5px solid #ff0000;
+            background-color: #fff0f0;
+        }
+
+        .announcement-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .announcement-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #003366;
+        }
+
+        .announcement-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .announcement-content {
+            font-size: 14px;
+            line-height: 1.8;
+            text-indent: 2em;
+        }
+
+        .announcement-content ul, .announcement-content ol {
+            margin-left: 2em;
+            margin-top: 10px;
+        }
+
+        .announcement-content li {
+            margin-bottom: 8px;
+        }
+
+        .broken-image {
+            width: 120px;
+            height: 90px;
+            border: 1px solid #999;
+            background-color: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ff0000;
+            font-size: 24px;
+            float: right;
+            margin: 10px 0 10px 15px;
+        }
+
+        .encrypted {
+            filter: blur(5px);
+            user-select: none;
+            pointer-events: none;
+            transition: filter 0.3s;
+        }
+
+        .encrypted.unlocked {
+            filter: blur(0);
+            user-select: text;
+            pointer-events: auto;
+        }
+
+        .password-prompt {
+            text-align: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+            margin: 10px 0;
+            border: 1px dashed #999;
+        }
+
+        .password-input {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            margin-right: 10px;
+            width: 150px;
+        }
+
+        .password-btn {
+            padding: 8px 20px;
+            background-color: #003366;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .password-btn:hover {
+            background-color: #004080;
+        }
+
+        .forum-section {
+            background-color: #e8e8e8;
+            border: 2px solid #666;
+            margin-top: 30px;
+        }
+
+        .forum-header {
+            background-color: #800000;
+            color: #fff;
+            padding: 12px 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .forum-info {
+            padding: 10px 15px;
+            background-color: #d0d0d0;
+            font-size: 13px;
+            color: #333;
+            border-bottom: 1px solid #999;
+        }
+
+        .post {
+            background-color: #fff;
+            margin: 10px 15px;
+            border: 1px solid #ccc;
+            padding: 15px;
+        }
+
+        .post-header {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .post-author {
+            font-weight: bold;
+            color: #003366;
+        }
+
+        .post-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 10px;
+        }
+
+        .post-content {
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .post-content ul, .post-content ol {
+            margin-left: 2em;
+            margin-top: 10px;
+        }
+
+        .post-content li {
+            margin-bottom: 8px;
+        }
+
+        .reply {
+            background-color: #f9f9f9;
+            margin: 10px 25px;
+            padding: 10px;
+            border-left: 3px solid #ccc;
+            font-size: 13px;
+        }
+
+        .reply-author {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        .footer {
+            background-color: #003366;
+            color: #fff;
+            text-align: center;
+            padding: 20px 20px 60px 20px;
+            margin-top: 30px;
+            font-size: 12px;
+            position: relative;
+        }
+
+        .footer-logo {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #ffcc00;
+            margin: 15px auto 20px auto;
+            background: linear-gradient(45deg, transparent 40%, #ff0000 40%, #ff0000 60%, transparent 60%);
+            position: relative;
+        }
+
+        .footer-logo::before {
+            content: "校徽";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 12px;
+            z-index: 1;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            border: 3px solid #003366;
+            position: relative;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .close-modal:hover {
+            color: #000;
+        }
+
+        .report-btn {
+            display: block;
+            margin: 15px auto 25px auto;
+            padding: 6px 18px;
+            background-color: #cc0000;
+            color: #fff;
+            border: 1px solid #990000;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: 'SimSun', serif;
+        }
+        .report-btn:hover {
+            background-color: #ff0000;
+        }
+
+        .error-modal-content {
+            background-color: #fff;
+            padding: 30px;
+            max-width: 450px;
+            width: 90%;
+            border: 3px solid #cc0000;
+            position: relative;
+        }
+        .error-modal-content h3 {
+            color: #cc0000;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .error-modal-content ul {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+        .error-modal-content ul li {
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        .error-modal-content .rollback-btn {
+            display: block;
+            width: 100%;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            font-family: 'SimSun', serif;
+        }
+        .error-modal-content .rollback-btn:hover {
+            background-color: #555;
+        }
+
+        .tab-container {
+            display: flex;
+            border-bottom: 2px solid #003366;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 25px;
+            cursor: pointer;
+            background-color: #e0e0e0;
+            border: 1px solid #999;
+            border-bottom: none;
+            margin-right: 5px;
+        }
+
+        .tab.active {
+            background-color: #003366;
+            color: #fff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .hint-box {
+            background-color: #fffacd;
+            border: 1px solid #ffd700;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 13px;
+        }
+
+        .glitch-text {
+            animation: glitch 2s infinite;
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+
+        .typing-effect {
+            overflow: hidden;
+            border-right: 2px solid #333;
+            white-space: nowrap;
+            animation: typing 3s steps(40, end);
+        }
+
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        /* ── CRT 老式电脑特效 ── */
+        html {
+            filter: saturate(0.5) contrast(0.9) blur(0.3px);
+        }
+        #crt-noise {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9998;
+            opacity: 0.22;
+            mix-blend-mode: screen;
+            image-rendering: pixelated;
+        }
+        #crt-flash {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9997;
+            background: transparent;
+            transition: background 0.05s;
+        }
+
+        /* ── 老式电脑显示器外框 ── */
+        #monitor-frame {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 10000;
+            box-sizing: border-box;
+            border: 46px solid #262626;
+            border-radius: 26px;
+            background: transparent;
+            box-shadow:
+                /* 内斜面高光 */
+                inset 0 0 0 1px rgba(255,255,255,0.03),
+                inset 0 0 0 3px #151515,
+                inset 0 0 0 5px #343434,
+                inset 0 0 0 6px #111,
+                /* 外斜面 */
+                0 0 0 4px #1c1c1c,
+                0 0 0 6px #363636,
+                0 0 0 8px #131313,
+                /* 环境投影 */
+                0 0 60px rgba(0,0,0,0.7);
+        }
+
+        /* 品牌标识 */
+        #monitor-frame::before {
+            content: '星榆';
+            position: fixed;
+            bottom: 11px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #3d3d3d;
+            font-size: 11px;
+            font-family: "宋体", SimSun, serif;
+            letter-spacing: 8px;
+            z-index: 10001;
+            pointer-events: none;
+        }
+
+        /* 电源指示灯 */
+        #monitor-frame::after {
+            content: '';
+            position: fixed;
+            bottom: 14px;
+            right: 84px;
+            width: 6px; height: 6px;
+            background: #3f3;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #3f3, 0 0 16px #3f3;
+            z-index: 10001;
+        }
+
+        /* ── 关闭按钮（显示器电源键） ── */
+        #power-btn {
+            position: fixed;
+            bottom: 7px;
+            right: 18px;
+            z-index: 10001;
+            pointer-events: auto;
+            cursor: pointer;
+            background: linear-gradient(180deg, #3d3d3d, #1e1e1e);
+            color: #777;
+            border: 1px solid #151515;
+            border-top-color: #444;
+            border-left-color: #3a3a3a;
+            padding: 4px 16px;
+            font-family: "宋体", SimSun, serif;
+            font-size: 11px;
+            letter-spacing: 3px;
+            border-radius: 3px;
+            user-select: none;
+            text-align: center;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.04);
+        }
+        #power-btn:hover {
+            color: #bbb;
+            background: linear-gradient(180deg, #4a4a4a, #282828);
+        }
+        #power-btn:active {
+            background: linear-gradient(180deg, #1a1a1a, #2a2a2a);
+            border-top-color: #222;
+            border-left-color: #222;
+            color: #555;
+            box-shadow: none;
+            transform: translateY(1px);
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="crt-noise"></canvas>
+<div id="crt-flash"></div>
+<div id="monitor-frame"></div>
+<div id="power-btn" onclick="go('map.html')">关闭</div>
+
+<div class="header">
+    <h1>立德树人 勤学笃行｜星榆乡镇中学</h1>
+    <p>星榆中学官方网站 · 建校于1985年 · 为国育才</p>
+</div>
+
+<nav class="nav">
+</nav>
+
+<div class="container">
+
+    <div class="tab-container">
+        <div class="tab active" onclick="switchTab('official')">📋 官方新闻公告栏</div>
+        <div class="tab" onclick="switchTab('forum')">💬 星榆闲聊吧</div>
+        <div class="tab" onclick="switchTab('archive')">📁 学生档案处</div>
+    </div>
+
+    <div id="official" class="tab-content active">
+        <div class="section-title">⚠️ 学校官方新闻公告栏</div>
+        <p style="text-align: center; color: #666; font-size: 13px; margin-bottom: 20px;">
+            【重要通知】本站将于2008年9月15日永久关闭，请师生及时查看重要信息
+        </p>
+
+        <div class="announcement important">
+            <div class="announcement-header">
+                <span class="announcement-title">【头条置顶】关于星榆中学永久关停的通知</span>
+                <span class="announcement-meta">发布时间：2008-09-12 09:17 | 发布部门：校长办公室</span>
+            </div>
+            <div class="announcement-content">
+                <p>各位师生、家长：</p>
+                <p>经上级住建、教育部门联合校舍安全排查，我校教学楼主体抗震结构不达标，存在重大安全隐患。为全体师生人身安全考虑，自<strong>2008年9月15日</strong>起，星榆中学全面停课，<strong>永久关停</strong>，不再开展任何教学活动。</p>
+                
+                <p><strong>相关安排告知如下：</strong></p>
+                <ol>
+                    <li>全体学生于9月14日18:00前离校，带走个人书本、生活用品；晚自习取消，21点离校规定同步停止，但离校前<strong>严禁独自前往三楼教学楼</strong>。</li>
+                    <li>高三学生档案、学籍资料统一存放于教务处档案柜，由政教处张建军主任统一保管。</li>
+                    <li>校内医务室每日17:00短暂开放，仅提供普通感冒药，特殊药剂统一封存，学生不得主动索要<span style="color: red;">红色瓶装药剂</span>。</li>
+                    <li>每周五大扫除工作即刻取消，<strong>三楼卫生间、三楼实验室区域全面封锁</strong>，禁止任何师生靠近清扫、查看。</li>
+                    <li>校内监控系统24小时留存录像，调取权限仅对教职工开放，晚20:30后禁止任何人查看三楼监控画面。</li>
+                </ol>
+                
+                <p>请全体师生配合校方安排，切勿在校内逗留、传播不实谣言，如有不适及时向值班教师反映。</p>
+                <p style="text-align: right;">星榆中学政教处<br>2008年9月12日</p>
+            </div>
+        </div>
+
+        <div class="announcement" id="teacher-notice">
+            <div class="password-prompt">
+                <strong>🔒 内部教职工补充通知（加密页面）</strong><br>
+                <span style="font-size: 12px; color: #666;">发布时间：2008-08-25 | 发布部门：校长室 | 需要教职工权限验证</span><br><br>
+                <input type="password" class="password-input" id="teacher-password" placeholder="输入验证密码">
+                <button class="password-btn" onclick="unlockTeacherNotice()">验证身份</button>
+                <p id="teacher-error" style="color: red; font-size: 12px; margin-top: 5px;"></p>
+            </div>
+            
+            <div class="announcement-header" style="display: none;" id="teacher-header">
+                <span class="announcement-title">【内部】全体教职工安全补充条例公示（仅校内人员阅览）</span>
+                <span class="announcement-meta">发布时间：2008-08-25 | 发布部门：校长室</span>
+            </div>
+            <div class="announcement-content" style="display: none;" id="teacher-content">
+                <ol>
+                    <li>每日20:30若听见三楼传来集体朗读声，立刻锁闭办公室门窗，关闭监控页面，禁止张望三楼方向。</li>
+                    <li>走廊偶遇无面部蓝白校服学生，不得对视、搭话，假装无视快速离开。</li>
+                    <li>医务室红色药剂全部锁入保险柜，保险柜调取密码1705，严禁发放给高三年级学生。</li>
+                    <li>学生提及三楼实验室、怪异人影、失踪同学，统一判定为升学压力导致幻觉，做好心理疏导，不得附和学生言论。</li>
+                    <li>周五夜间禁止教职工单人整栋教学楼巡查，三楼区域全程封锁。</li>
+                </ol>
+                <p style="color: #cc0000;"><strong>一切异常现象均为光线、心理作用，禁止对外泄露校内怪事，违者追究责任。</strong></p>
+            </div>
+        </div>
+
+        <div class="announcement" style="opacity: 0.6;">
+            <div class="announcement-header">
+                <span class="announcement-title">高三年级秋季补课安排（已作废）</span>
+                <span class="announcement-meta">发布时间：2008-09-01 | 状态：已失效</span>
+            </div>
+            <div class="announcement-content">
+                <p>为应对高考，我校原定高三全年级留校晚自习补课，每日晚自习至21:00。</p>
+                <p>全校高三共3个班级，每班42名学生，总计126名高三在校生。</p>
+                <p>补课期间严格遵守校园管理条例，禁止私自进入三楼实验室翻动储物柜。</p>
+                <p style="color: #999; font-style: italic;">【注：此公告因学校关停已自动失效】</p>
+            </div>
+        </div>
+
+        <div class="announcement">
+            <div class="announcement-header">
+                <span class="announcement-title">校园失踪学生情况说明</span>
+                <span class="announcement-meta">发布时间：2008-09-10 | 发布部门：政教处</span>
+            </div>
+            <div class="announcement-content">
+                <p>近期有家长、学生流传"多名高三学生无故失踪"谣言，校方在此统一说明：</p>
+                <p>网传失踪8名学生均为主动办理转学、退学手续，因家庭原因离校，并非在校内失联。</p>
+                <p>校内不存在任何诡异现象、不明人影，请各位学生安心学习，不要轻信网络小道消息，不在校内贴吧发布不实言论。政教处会管控论坛不良帖子。</p>
+            </div>
+        </div>
+
+        <div class="announcement">
+            <div class="announcement-header">
+                <span class="announcement-title">校园设施维修通知</span>
+                <span class="announcement-meta">发布时间：2008-09-05 | 发布部门：总务处</span>
+            </div>
+            <div class="announcement-content">
+                <div class="broken-image">✕</div>
+                <p>三楼教学楼墙体出现开裂痕迹，实验室设备老化存在漏电风险，即日起永久封闭三楼整层。</p>
+                <p>三楼储物柜存放老旧实验器材，禁止学生私自撬开查看，相关实验记录统一封存。</p>
+                <p style="font-size: 12px; color: #999;">【配图加载失败 - 图片已被删除或损坏】</p>
+            </div>
+        </div>
+
+        <div class="announcement" style="border-left: 4px solid #cc0000;">
+            <div class="announcement-header">
+                <span class="announcement-title" style="color: #cc0000;">学生处分通告</span>
+                <span class="announcement-meta">发布时间：2008-09-13 | 发布部门：政教处</span>
+            </div>
+            <div class="announcement-content">
+                <p style="color: #cc0000; font-weight: bold;">开除学生陈宇0817</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="forum" class="tab-content">
+        <div class="forum-section">
+            <div class="forum-header">💬 星榆闲聊吧</div>
+            <div class="forum-info">
+                欢迎同学们畅所欲言 | 文明发言，友善交流
+            </div>
+
+            <!-- 正常学生日常闲聊内容 -->
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：小纸条</span> | 2008-09-01 12:15 | 😄
+                </div>
+                <div class="post-title">开学第一天！大家暑假过得怎么样？</div>
+                <div class="post-content">
+                    <p>终于开学啦！虽然又要早起了但还是有点期待，好久没见到大家了～</p>
+                    <p>我暑假去了厦门，拍了超多照片，回来赶完作业感觉身体被掏空😂</p>
+                    <div class="reply">
+                        <div class="reply-author">作业写完了吗 回复：</div>
+                        我也去了厦门！鼓浪屿的奶茶好好喝！不过暑假作业我也是最后一天补完的哈哈。
+                    </div>
+                    <div class="reply">
+                        <div class="reply-author">数学课代表 回复：</div>
+                        你们好过分啊，我暑假刚开始就把作业写完了，无聊了一个多月……
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：篮球少年</span> | 2008-09-02 16:40 | 🏀
+                </div>
+                <div class="post-title">这学期有篮球赛吗？我们约三班打一场！</div>
+                <div class="post-content">
+                    <p>上学期输了一分太可惜了，这学期一定要赢回来！</p>
+                    <p>我们班新来了一个转学生，听说是校队水准，大家小心了😎</p>
+                    <div class="reply">
+                        <div class="reply-author">三班队长 回复：</div>
+                        随时奉陪！不过体育老师说要翻修操场跑道，不知道什么时候能好。
+                    </div>
+                    <div class="reply">
+                        <div class="reply-author">体育课代表 回复：</div>
+                        翻修的话我们找老师申请去外面篮球场打也行！
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：晴天娃娃</span> | 2008-09-03 13:20 | 🍚
+                </div>
+                <div class="post-title">食堂阿姨今天的红烧肉太好吃了吧！</div>
+                <div class="post-content">
+                    <p>今天的红烧肉绝了，软烂入味，阿姨是不是换配方了？</p>
+                    <p>就是排队排了快二十分钟，求学校多加两个窗口！</p>
+                    <div class="reply">
+                        <div class="reply-author">吃不胖星人 回复：</div>
+                        红烧肉是真的好吃！但是昨天的青椒炒肉全是青椒，肉都没几片……
+                    </div>
+                    <div class="reply">
+                        <div class="reply-author">匿名用户 回复：</div>
+                        你们太挑了，我觉得食堂的饭还不错啦，至少比我妈做的好吃。
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：英语课代表</span> | 2008-09-04 18:45 | 📚
+                </div>
+                <div class="post-title">高三了大家紧张吗？感觉压力有点大</div>
+                <div class="post-content">
+                    <p>开学才几天就觉得好累，每天作业写到十点多，想想还有一年高考就觉得好漫长。</p>
+                    <p>大家有没有什么缓解压力的方法推荐一下？</p>
+                    <div class="reply">
+                        <div class="reply-author">听歌解压 回复：</div>
+                        我每次压力大就听周杰伦的新专辑，《青花瓷》单曲循环一百遍！
+                    </div>
+                    <div class="reply">
+                        <div class="reply-author">匿名用户 回复：</div>
+                        课间去打会儿羽毛球挺好的，比一直坐在座位上强。
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：可乐不加冰</span> | 2008-09-04 21:10 | 🎮
+                </div>
+                <div class="post-title">最近在玩PSP新出的怪物猎人2G，有人联机吗？</div>
+                <div class="post-content">
+                    <p>入手了怪猎2G，手感超棒！有没有一起联机的同学？</p>
+                    <p>午休时间可以偷偷来一局（别被老师抓到就行）</p>
+                    <div class="reply">
+                        <div class="reply-author">游戏爱好者 回复：</div>
+                        带我一个！我用太刀，打怪超爽的。
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：追风少女</span> | 2008-09-05 15:30 | 🎵
+                </div>
+                <div class="post-title">校园广播站征歌！大家想听什么歌？</div>
+                <div class="post-content">
+                    <p>这学期由我负责广播站选歌啦！大家有什么想听的歌曲推荐给我～</p>
+                    <p>目前歌单：周杰伦、林俊杰、孙燕姿的都有，求其他推荐！</p>
+                    <div class="reply">
+                        <div class="reply-author">五月天粉丝 回复：</div>
+                        放一首五月天的《倔强》吧！超级励志！
+                    </div>
+                    <div class="reply">
+                        <div class="reply-author">抒情歌爱好者 回复：</div>
+                        可以放梁静茹的《会呼吸的痛》吗？最近超爱这首。
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：化学课代表</span> | 2008-09-06 11:00 | 🧪
+                </div>
+                <div class="post-title">今天的化学实验课太有意思了！</div>
+                <div class="post-content">
+                    <p>李老师今天演示了焰色反应，钠的黄光好漂亮！铜离子是蓝绿色的！</p>
+                    <p>可惜高一实验课比较少，真想多做几次实验。</p>
+                    <div class="reply">
+                        <div class="reply-author">物理课代表 回复：</div>
+                        我们物理课也做了自由落体实验，伽利略说得对，轻重真的同时落地！
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：匿名用户</span> | 2008-09-07 20:00 | 🤫
+                </div>
+                <div class="post-title">听说高三张老师下学期要带毕业班了？</div>
+                <div class="post-content">
+                    <p>隔壁班说张老师是年级里最受欢迎的老师，带完我们这届就要去带高一新生了。</p>
+                    <p>希望最后一年能顺利毕业，大家都考上好大学！</p>
+                    <div class="reply">
+                        <div class="reply-author">高三狗 回复：</div>
+                        张老师人太好了，上课幽默还会给我们买零食，舍不得他走😢
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：锁屏坏了</span> | 2008-09-08 11:30
+                </div>
+                <div class="post-title">政教处的电子锁密码居然是4321</div>
+                <div class="post-content">
+                    <p>上星期手机被张主任收了，今天去政教处想拿回来，主任不在我就试了试储物柜的电子锁……</p>
+                    <p>随便按了个4321居然开了！拿回手机的时候感觉不太对劲，后来我试了教师办公室的门禁也是4321，感觉学校里很多密码都是4321，这也太随便了吧。</p>
+                    <div class="reply">
+                        <div class="reply-author">瑟瑟发抖 回复：</div>
+                        别乱说吧，万一被发现了又要被叫家长了……
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 学生档案处 -->
+    <div id="archive" class="tab-content">
+        <div class="forum-section">
+            <div class="forum-header" onclick="onArchiveHeaderClick(event)" style="cursor: pointer;">📁 学生档案处<span style="font-size: 13px; margin-left: 15px; color: #ffcccc;">（切换旧版）</span></div>
+            <div class="forum-info">
+                仅供在校师生查阅 | 档案室开放时间：周一至周五 8:00-17:00
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">档案编号：S-1985-001</span> | 归档日期：1985-09-01
+                </div>
+                <div class="post-title">星榆中学建校档案</div>
+                <div class="post-content">
+                    <p>星榆中学始建于1985年，前身为星榆镇联合中学。建校初期设有教学楼一栋、实验楼一栋，教职工32人，首届招生486人。</p>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">档案编号：T-2003-047</span> | 归档日期：2003-11-15
+                </div>
+                <div class="post-title">教师人事调动记录（2003年度）</div>
+                <div class="post-content">
+                    <p>2003年9月，物理教研组新聘教师3人，原教研组长李国华调离，原因：个人申请。新任教研组长：张建军。</p>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">档案编号：E-2005-112</span> | 归档日期：2005-06-20
+                </div>
+                <div class="post-title">实验设备采购清单（2005年度）</div>
+                <div class="post-content">
+                    <p>三楼实验室新增设备：频谱分析仪一台、信号发生器两台、高精度磁场检测仪一台。采购来源：省教育厅专项拨款。</p>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">档案编号：S-2008-089</span> | 归档日期：2008-03-07
+                </div>
+                <div class="post-title">学生健康体检汇总报告（2008年春季）</div>
+                <div class="post-content">
+                    <p>本次体检应检126人，实检118人，8人因病缺席。体检异常指标：部分学生出现轻度视力模糊、短期记忆衰退，建议进一步观察。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 隐藏存储：原始论坛内容 -->
+    <div id="forum-hidden" class="tab-content" style="display: none;">
+        <div class="forum-section">
+            <div class="forum-header">💬 星榆闲聊吧｜仅本校学生可发帖</div>
+            <div class="forum-info">
+                ⚠️ 查看帖子需学号验证
+                <div style="margin-top: 10px;">
+                    <input type="password" class="password-input" id="forum-password-backup" placeholder="输入学号查看帖子">
+                    <button class="password-btn" onclick="unlockForumBackup()">验证</button>
+                </div>
+            </div>
+
+            <div class="encrypted" id="forum-posts-hidden">
+            <div class="post" id="post1">
+                <div class="post-header">
+                    <span class="post-author">楼主：榆宇0817</span> | 2008-09-06 18:23 | 📌精华帖
+                </div>
+                <div class="post-title">【加密帖】我整理了一套校园隐藏禁忌，官方校规全是坑</div>
+                <div class="post-content">
+                        <p>帖子加密，密码本人学号0817，看懂规则再在校内行动，保命用。</p>
+                        
+                        <div class="encrypted">
+                            <div class="hint-box">
+                                <strong>⚠️ 完整禁忌5条：</strong>
+                                <ol>
+                                    <li>三楼朗读声是失踪同班同学</li>
+                                    <li>无脸校服人必须主动搭话</li>
+                                    <li>绝对不要触碰医务室红色瓶装药剂，接触会加重幻觉缠身</li>
+                                    <li>不要打开三楼储物柜，柜内存在会扭曲心智的污染气体</li>
+                                    <li>周五切勿看向卫生间镜面，镜中事物会跟随你离开教学楼</li>
+                                </ol>
+                                <p>这是我要告诉他的·····希望他能明白</p>
+                            </div>
+                            
+                            <div class="reply">
+                                <div class="reply-author">晓星晚 回复：</div>
+                                我昨天撞见无脸校服女生，按照官方规定假装没看见，当晚回宿舍全程听见脚步声跟着我，好吓人。
+                            </div>
+                            
+                            <div class="reply">
+                                <div class="reply-author">匿名用户 回复：</div>
+                                上周五一去三楼卫生间，镜子里多出一堆陌生学生，吓得我直接跑了。
+                            </div>
+                            
+                            <div class="reply">
+                                <div class="reply-author">匿名用户 回复：</div>
+                                王伯偷偷给过我一小瓶红药水，喝完之后好几天没看见怪人。
+                            </div>
+                        </div>
+                    </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：榆宇0817</span> | 2008-09-22 20:11 | 🔥热门
+                </div>
+                    <div class="post-title">不为人知的真相····？</div>
+                <div class="post-content">
+                    <p id="truth-content" style="color: #888; font-style: italic;">[此段内容已被删除]</p>
+                </div>
+                <div class="post-content" style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #aaa; background: #000; color: #000; padding: 12px; border-radius: 2px; filter: none; pointer-events: auto; user-select: text; box-sizing: border-box; overflow: hidden;">
+                    <div class="post-header" style="border-bottom: none; padding-bottom: 2px;">
+                        <span class="post-author">二次修改：张老师</span> | 2008-09-23 08:30
+                    </div>
+                    <div style="margin-top: 5px; overflow: hidden;">
+                        <p style="margin:0; padding:0; font-family: 'Courier New', 'Consolas', monospace; font-size: 14px; line-height: 1.1; white-space: pre; overflow: hidden; word-break: break-all; text-overflow: clip;">0███████████████████████████████████████████████████████████</p>
+                        <p style="margin:0; padding:0; font-family: 'Courier New', 'Consolas', monospace; font-size: 14px; line-height: 1.1; white-space: pre; overflow: hidden; word-break: break-all; text-overflow: clip;">█████9████████████████████████████████████████████████████████</p>
+                        <p style="margin:0; padding:0; font-family: 'Courier New', 'Consolas', monospace; font-size: 14px; line-height: 1.1; white-space: pre; overflow: hidden; word-break: break-all; text-overflow: clip;">0███████████████████████████████████████████████████████████</p>
+                        <p style="margin:0; padding:0; font-family: 'Courier New', 'Consolas', monospace; font-size: 14px; line-height: 1.1; white-space: pre; overflow: hidden; word-break: break-all; text-overflow: clip;">█████1████████████████████████████████████████████████████████</p>
+                        <p style="margin:0; padding:0; font-family: 'Courier New', 'Consolas', monospace; font-size: 14px; line-height: 1.1; white-space: pre; overflow: hidden; word-break: break-all; text-overflow: clip;">████████████████████████████</p>
+                    </div>
+                </div>
+                
+                    <div class="reply">
+                        <div class="reply-author">晓星晚 回复：</div>
+                        我在政教处偷看过教师手册，主任他们全都知道真相，却选择掩盖。
+                    </div>
+                    <div class="reply" style="margin-top: 8px; border-left: 3px solid #a00000;">
+                        <div class="reply-author" style="color: #a00000;">已注销用户 回复：</div>
+                        老师 就算你把他开除了 就算你把这条删了 我也会去档案室归档 把真相查明的！
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：榆宇0817</span> | 2008-09-03 17:45
+                </div>
+                <div class="post-title">吐槽：张主任只会糊弄学生，失踪根本不是转学</div>
+                <div class="post-content">
+                    <p>我去找张主任问同学去哪了，他一口咬定全部自愿转学，监控还全部锁起来不让我们看，明显心里有鬼。</p>
+                    <p>学校莫名其妙不让去三楼、不让打扫三楼厕所，医务室红瓶子锁死，条条规定都不对劲。</p>
+                    
+                    <div class="reply">
+                        <div class="reply-author">晓星晚 回复：</div>
+                        我上周17点准时去医务室拿药，大门紧闭，根本没人，公示的开放时间完全是骗人的。
+                    </div>
+                    
+                    <div class="reply">
+                        <div class="reply-author">匿名高三2班 回复：</div>
+                        20:30一到三楼就有读书声，老师全部关门窗不敢听，太反常了。
+                    </div>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：榆宇0817</span> | 2008-09-18 19:05 | ⚠️慎入
+                </div>
+                <div class="post-title">周五卫生间镜子亲身经历（惊悚记录）</div>
+                <div class="post-content">
+                    <p>今天周五，我偷偷溜去三楼卫生间照镜子，镜子里回放了几年前的实验课画面：</p>
+                    <p style="color: #cc0000; font-style: italic;">一群学生围着一台白色仪器，没过多久所有人脸部慢慢变空白，变成没有五官的校服人影。</p>
+                    <p>校方特意取消三楼卫生间大扫除，就是不想我们靠近镜子看见真相。大家周五千万别回避镜子，那是唯一能看见完整真相的地方。</p>
+                </div>
+            </div>
+
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">楼主：榆宇0817</span> | 2008-09-26 16:10
+                </div>
+                <div class="post-title">闲聊帖：学校马上关停，留给后来人的线索</div>
+                <div class="post-content">
+                    <p>再过几天学校就要彻底封死，所有实验记录、监控录像都会被销毁。</p>
+                </div>
+            </div>
+
+            <div class="post" style="background-color: #f0f0f0;">
+                <div class="post-header">
+                    <span class="post-author">匿名用户</span> | 2008-09-25 14:20
+                </div>
+                <div class="post-title">马上停课了，大家准备去哪上高中？</div>
+                <div class="post-content">
+                    听说隔壁县城中学还收插班生，可惜这边好多同学联系不上了。
+                </div>
+            </div>
+
+            <div class="post" style="background-color: #f0f0f0;">
+                <div class="post-header">
+                    <span class="post-author">匿名用户</span> | 2008-09-24 16:45
+                </div>
+                <div class="post-title">医务室的红瓶子到底是什么？</div>
+                <div class="post-content">
+                    王伯说可以压幻觉，但是老师说有毒，死活不给我们碰。
+                </div>
+            </div>
+
+            <div class="post" style="background-color: #f0f0f0;">
+                <div class="post-header">
+                    <span class="post-author">匿名用户</span> | 2008-09-23 20:15
+                </div>
+                <div class="post-title">晚自习三楼的读书声有人听见吗？</div>
+                <div class="post-content">
+                    每天20:30准时出现，问老师都说是风声，谁信啊。
+                </div>
+            </div>
+
+            <div class="post" style="background-color: #f0f0f0;">
+                <div class="post-header">
+                    <span class="post-author">匿名用户</span> | 2008-09-22 15:30
+                </div>
+                <div class="post-title">三楼为什么常年锁门？</div>
+                <div class="post-content">
+                    说是墙体开裂，但是我扒窗户看见里面仪器还亮着微光。
+                </div>
+            </div>
+
+            <div class="post" style="border-left: 4px solid #800000;">
+                <div class="post-header">
+                    <span class="post-author" style="color: #800000;">晓星晚（ID：晓星晚）</span> | 2008-09-12 21:05 | 😢情绪帖
+                </div>
+                <div class="post-title" style="color: #800000;">分不清什么是真，什么是幻觉</div>
+                <div class="post-content">
+                    <p>今天清点班级人数，确认失踪8个人。</p>
+                    <p>公示校规、老师手册、贴吧禁忌三条完全冲突，遵守官方规则只会不断看见怪事。</p>
+                    <p>我把所有线索写在周记里藏在档案室，如果学校封校，希望有人能发现真相，不要选择视而不见。</p>
+                    <p style="font-style: italic; color: #666;">—— 一个快要分不清现实的高三女生</p>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="footer-logo"></div>
+        <button class="report-btn" onclick="openErrorModal()">报告问题</button>
+        <p>© 2008 星榆中学 版权所有 | 联系电话：(0571)XXXX-XXXX</p>
+        <p>地址：浙江省杭州市星榆镇教育路88号 | 邮编：310000</p>
+        <p style="margin-top: 10px; font-size: 11px; opacity: 0.7;">
+            本网站将于2008年9月15日正式停止运营 | 最后更新时间：2008-09-12 09:17
+        </p>
+        <p style="font-size: 10px; color: #ff6666; margin-top: 5px;">
+            ⚠️ 如遇异常现象请立即联系值班教师 | 切勿在三楼区域逗留
+        </p>
+    </div>
+
+</div>
+
+<!-- 学生档案处密码弹窗 -->
+<div class="modal" id="archivePwModal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeArchivePwModal()">&times;</span>
+        <h3>身份验证</h3>
+        <p style="font-size: 14px; color: #666; margin-bottom: 15px;">请输入学生档案处管理密码：</p>
+        <div style="margin-bottom: 10px;">
+            <input type="password" class="password-input" id="archive-password" placeholder="输入密码">
+            <button class="password-btn" onclick="checkArchivePassword()">确认</button>
+        </div>
+        <p id="archive-pw-error" style="color: red; font-size: 12px; margin-top: 5px;"></p>
+        <p style="font-size: 12px; color: #003366; margin-top: 15px; cursor: pointer; text-decoration: underline;" onclick="showArchiveQuestion()">忘记密码？</p>
+        <div id="archive-question-area" style="display: none; margin-top: 15px; border-top: 1px solid #ccc; padding-top: 15px;">
+            <p style="font-size: 14px; color: #333; margin-bottom: 10px;"><strong>安全问题：</strong>本年级实际人数：</p>
+            <div>
+                <input type="text" class="password-input" id="archive-answer" placeholder="请输入答案">
+                <button class="password-btn" onclick="checkArchiveAnswer()">验证</button>
+            </div>
+            <p id="archive-answer-error" style="color: red; font-size: 12px; margin-top: 5px;"></p>
+        </div>
+    </div>
+</div>
+
+<!-- 报错弹窗 -->
+<div class="modal" id="errorModal">
+    <div class="error-modal-content">
+        <span class="close-modal" onclick="closeErrorModal()">&times;</span>
+        <h3>页面问题反馈</h3>
+        <p style="font-size: 14px; color: #666; margin-bottom: 15px;">如发现页面存在异常，请通过以下方式联系我们：</p>
+        <ul>
+            <li>技术值班电话：(0571)XXXX-XXXX</li>
+            <li>邮箱反馈：admin@xingyu.edu.cn</li>
+            <li>线下报修：政教处（工作时间）</li>
+        </ul>
+        <button class="rollback-btn" id="rollback-btn" onclick="showRollbackPassword()">回退页面至上一节点</button>
+        <div id="rollback-pw-area" style="display: none; margin-top: 15px;">
+            <input type="password" class="password-input" id="rollback-password" placeholder="输入回退密码">
+            <button class="password-btn" onclick="doRollback()">确认</button>
+            <p id="rollback-error" style="color: red; font-size: 12px; margin-top: 5px;"></p>
+        </div>
+    </div>
+</div>
+
+
+<script>
+function switchTab(tabId) {
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    event.target.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+}
+
+function onArchiveHeaderClick(event) {
+    document.getElementById('archivePwModal').style.display = 'flex';
+    document.getElementById('archive-pw-error').textContent = '';
+    document.getElementById('archive-password').value = '';
+    document.getElementById('archive-answer').value = '';
+    document.getElementById('archive-answer-error').textContent = '';
+    document.getElementById('archive-question-area').style.display = 'none';
+}
+
+function closeArchivePwModal() {
+    document.getElementById('archivePwModal').style.display = 'none';
+}
+
+function checkArchivePassword() {
+    document.getElementById('archive-pw-error').textContent = '密码错误，请重试。';
+}
+
+function showArchiveQuestion() {
+    document.getElementById('archive-question-area').style.display = 'block';
+    document.getElementById('archive-answer-error').textContent = '';
+    document.getElementById('archive-answer').value = '';
+}
+
+function checkArchiveAnswer() {
+    const answer = document.getElementById('archive-answer').value.trim();
+    if (answer === '118') {
+        saveIndexState();
+        go('logs.html');
+    } else {
+        document.getElementById('archive-answer-error').textContent = '答案错误，请重试。';
+    }
+}
+
+function unlockTeacherNotice() {
+    const password = document.getElementById('teacher-password').value;
+    const errorEl = document.getElementById('teacher-error');
+    
+    if (password === '1705') {
+        document.getElementById('teacher-notice').classList.add('unlocked');
+        document.getElementById('teacher-header').style.display = 'block';
+        document.getElementById('teacher-content').style.display = 'block';
+        document.querySelector('#teacher-notice .password-prompt').style.display = 'none';
+        errorEl.textContent = '';
+    } else {
+        errorEl.textContent = '❌ 密码错误！此页面仅限教职工访问。';
+        errorEl.style.animation = 'glitch 0.5s';
+    }
+}
+
+function unlockPost(postId, correctPassword) {
+    const input = document.getElementById(postId + '-password');
+    const password = input.value;
+    
+    if (password === correctPassword) {
+        document.getElementById(postId).classList.add('unlocked');
+        document.getElementById(postId + '-content').style.display = 'block';
+        document.querySelector('#' + postId + ' .password-prompt').style.display = 'none';
+    } else {
+        alert('❌ 密码错误！提示：这是陈宇的学号');
+    }
+}
+
+function unlockForum() {
+    const password = document.getElementById('forum-password').value;
+    
+    if (password === '0817') {
+        document.getElementById('forum-posts').classList.add('unlocked');
+        BGM.tryPlaySwitchSound();
+    } else {
+        alert('❌ 密码错误！提示：这是陈宇的学号');
+    }
+}
+
+
+
+console.log('%c⚠️ 警告：你正在浏览星榆中学2008年存档网页', 'color: red; font-size: 20px; font-weight: bold;');
+console.log('%c如遇异常现象请立即关闭页面', 'color: red; font-size: 14px;');
+console.log('%c三楼大门密码提示：3-5-4-8', 'color: #003366; font-size: 16px; font-weight: bold;');
+
+
+function unlockForumBackup() {
+    var password = document.getElementById('forum-password-backup').value;
+    if (password === '0817') {
+        document.getElementById('forum-posts-hidden').classList.add('unlocked');
+        BGM.tryPlaySwitchSound();
+    } else {
+        alert('密码错误！提示：这是陈宇的学号');
+    }
+}
+
+function openErrorModal() {
+    document.getElementById('errorModal').style.display = 'flex';
+}
+
+function closeErrorModal() {
+    document.getElementById('errorModal').style.display = 'none';
+    document.getElementById('rollback-btn').style.display = 'block';
+    document.getElementById('rollback-pw-area').style.display = 'none';
+    document.getElementById('rollback-password').value = '';
+    document.getElementById('rollback-error').textContent = '';
+}
+
+function showRollbackPassword() {
+    document.getElementById('rollback-btn').style.display = 'none';
+    document.getElementById('rollback-pw-area').style.display = 'block';
+}
+
+function doRollback() {
+    var rollbackPw = document.getElementById('rollback-password').value;
+    if (rollbackPw !== '4321') {
+        document.getElementById('rollback-error').textContent = '密码错误，无法回退页面。';
+        return;
+    }
+    document.getElementById('rollback-error').textContent = '';
+    document.getElementById('forum').innerHTML = document.getElementById('forum-hidden').innerHTML;
+    var p = document.getElementById('forum').querySelector('.encrypted');
+    if (p) p.id = 'forum-posts';
+    var pw = document.getElementById('forum').querySelector('[id="forum-password-backup"]');
+    if (pw) pw.id = 'forum-password';
+    var btn = document.getElementById('forum').querySelector('.password-btn');
+    if (btn) btn.setAttribute('onclick', 'unlockForum()');
+    closeErrorModal();
+}
+
+function rollbackForum() {
+    showRollbackPassword();
+}
+
+window.onclick = function(event) {
+    var m = document.getElementById('errorModal');
+    if (event.target === m) { m.style.display = 'none'; }
+}
+
+function saveIndexState() {
+    try {
+        var activeTab = document.querySelector('.tab.active');
+        var currentTab = activeTab ? activeTab.getAttribute('onclick').match(/'([^']+)'/)[1] : 'official';
+        
+        var teacherUnlocked = document.getElementById('teacher-content') && 
+                             document.getElementById('teacher-content').style.display === 'block';
+        
+        // Check if doRollback() was executed (forum tab now has hidden content)
+        var forumRollbackDone = !!document.getElementById('forum-password');
+        var forumPostsUnlocked = false;
+        if (forumRollbackDone) {
+            forumPostsUnlocked = document.getElementById('forum-posts') && 
+                                document.getElementById('forum-posts').classList.contains('unlocked');
+        }
+        
+        var scrollY = window.scrollY;
+        
+        localStorage.setItem('xyzh_index_state', JSON.stringify({
+            currentTab: currentTab,
+            teacherUnlocked: teacherUnlocked,
+            forumRollbackDone: forumRollbackDone,
+            forumPostsUnlocked: forumPostsUnlocked,
+            scrollY: scrollY,
+            timestamp: Date.now()
+        }));
+    } catch(e) {
+        console.log('保存状态失败:', e);
+    }
+}
+
+function restoreIndexState() {
+    try {
+        var savedState = JSON.parse(localStorage.getItem('xyzh_index_state'));
+        if (!savedState) return;
+        
+        // 1. Switch to saved tab first
+        if (savedState.currentTab) {
+            var tabBtn = document.querySelector('.tab[onclick*="\'' + savedState.currentTab + '\'"]');
+            if (tabBtn) tabBtn.click();
+        }
+        
+        // 2. Restore teacher notice unlock
+        if (savedState.teacherUnlocked) {
+            document.getElementById('teacher-header').style.display = 'block';
+            document.getElementById('teacher-content').style.display = 'block';
+            document.getElementById('teacher-notice').classList.add('unlocked');
+            var teacherPw = document.querySelector('#teacher-notice .password-prompt');
+            if (teacherPw) teacherPw.style.display = 'none';
+        }
+        
+        // 3. Restore forum rollback + unlock
+        if (savedState.forumRollbackDone) {
+            // Re-execute doRollback DOM transformation
+            document.getElementById('forum').innerHTML = document.getElementById('forum-hidden').innerHTML;
+            var encDiv = document.getElementById('forum').querySelector('.encrypted');
+            if (encDiv) encDiv.id = 'forum-posts';
+            var pwInput = document.getElementById('forum').querySelector('[id="forum-password-backup"]');
+            if (pwInput) pwInput.id = 'forum-password';
+            var pwBtn = document.getElementById('forum').querySelector('.password-btn');
+            if (pwBtn) pwBtn.setAttribute('onclick', 'unlockForum()');
+            
+            // Re-unlock encrypted posts if needed
+            if (savedState.forumPostsUnlocked) {
+                var fp = document.getElementById('forum-posts');
+                if (fp) fp.classList.add('unlocked');
+                // Hide password input since already unlocked
+                var fpPw = document.getElementById('forum-password');
+                if (fpPw && fpPw.parentElement) fpPw.parentElement.style.display = 'none';
+            }
+        }
+        
+        // 4. Restore scroll position after everything renders
+        if (savedState.scrollY) {
+            setTimeout(function() { window.scrollTo(0, savedState.scrollY); }, 300);
+        }
+    } catch(e) {
+        console.log('无法恢复主页面状态:', e);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 清除论坛回退状态，确保每次进入都显示表面论坛
+    try { localStorage.removeItem('xyzh_index_state'); } catch(e) {}
+    
+    setInterval(saveIndexState, 5000);
+    
+    var tabs = document.querySelectorAll('.tab');
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            setTimeout(saveIndexState, 100);
+        });
+    });
+});
+</script>
+
+<script src="bgm.js"></script>
+
+<!-- ── CRT 雪花屏噪点 + 间歇闪屏 ── -->
+<script>
+(function(){
+    var cv=document.getElementById('crt-noise');
+    var cx=cv.getContext('2d');
+    var w,h,sw,sh,imgData,data;
+
+    function resize(){
+        w=cv.width=window.innerWidth;
+        h=cv.height=window.innerHeight;
+        sw=Math.ceil(w/4); sh=Math.ceil(h/4);
+        imgData=cx.createImageData(sw,sh);
+        data=imgData.data;
+    }
+    resize(); window.addEventListener('resize',resize);
+
+    function noise(){
+        for(var i=0;i<data.length;i+=4){
+            var v=Math.random()<0.13?200+Math.random()*55:0;
+            data[i]=v; data[i+1]=v; data[i+2]=v; data[i+3]=255;
+        }
+        cx.putImageData(imgData,0,0);
+        cx.drawImage(cv,0,0,sw,sh,0,0,w,h);
+        // scanlines
+        cx.fillStyle='rgba(0,0,0,0.16)';
+        for(var y=0;y<sh;y+=4) cx.fillRect(0,y*(h/sh),w,2*(h/sh));
+        // random line glitch
+        if(Math.random()<0.04){
+            cx.fillStyle='rgba(255,255,255,'+(0.04+Math.random()*0.08)+')';
+            cx.fillRect(0,Math.floor(Math.random()*h),w,1+Math.random()*3);
+        }
+        requestAnimationFrame(noise);
+    }
+    noise();
+
+    // 间歇闪屏
+    var flash=document.getElementById('crt-flash');
+    function scheduleFlash(){
+        var delay=3000+Math.random()*15000;
+        setTimeout(function(){
+            flash.style.background='rgba(255,255,255,'+(0.06+Math.random()*0.15)+')';
+            setTimeout(function(){
+                flash.style.background='transparent';
+                scheduleFlash();
+            },40+Math.random()*60);
+        },delay);
+    }
+    scheduleFlash();
+})();
+</script>
+
+<script>
+(function(){
+    var restored = false;
+    try{ restored = sessionStorage.getItem('xyzh_forum_restored')==='1'; }catch(e){}
+    if(restored){
+        var el = document.getElementById('truth-content');
+        if(el){
+            el.style.color = '#000';
+            el.style.fontStyle = 'normal';
+            el.innerHTML = '1. 对外公示校规，禁止三楼滞留条款编号7；<br>2. 教师内部安全条例，周五禁巡楼条款编号2；<br>3. 我们学生整理的禁忌，销毁仪器条款排第1；<br>4. 学校出事关停年份2008，取最后一位8；<br><br>救赎之道，倒序其中，最后机会，逃出生天';
+        }
+    }
+})();
+</script>
+
+</body>
+</html>

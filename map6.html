@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星榆中学 2008 · 实验区走廊（门字形）</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;margin:0 auto;background:#0a0a0a;filter:grayscale(1) contrast(1.1)}
+/* 黑影红框：HTML 元素，绕开 canvas 的 grayscale 滤镜以保持红色 */
+#chaser-frame{box-sizing:border-box;will-change:left,top,width,height,opacity,box-shadow}
+
+/* ── 跳脸惊吓效果 ── */
+#jumpscare-overlay{
+  display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;
+  z-index:99999;background:#000;cursor:pointer;
+}
+#jumpscare-overlay.active{
+  display:flex;justify-content:center;align-items:flex-start;
+  animation:jitter 0.08s infinite;
+}
+#jumpscare-flash{
+  position:fixed;top:0;left:0;width:100vw;height:100vh;
+  z-index:999999;pointer-events:none;opacity:0;
+  background:#fff;
+}
+#jumpscare-flash.active{
+  animation:flashStrobe 0.3s ease-out forwards;
+}
+@keyframes flashStrobe{
+  0%{opacity:0} 8%{opacity:0.9} 16%{opacity:0.1} 25%{opacity:0.8}
+  35%{opacity:0} 50%{opacity:0.7} 65%{opacity:0.05} 80%{opacity:0.5} 100%{opacity:0}
+}
+#jumpscare-img{
+  width:auto;height:auto;transform:scale(3);
+  animation:zoomPulse 0.06s infinite alternate,imageShake 0.04s infinite;
+  filter:contrast(1.3) brightness(1.1);
+}
+@keyframes jitter{
+  0%{transform:translate(0,0)} 25%{transform:translate(-6px,4px)}
+  50%{transform:translate(6px,-4px)} 75%{transform:translate(-4px,-6px)}
+  100%{transform:translate(4px,6px)}
+}
+@keyframes zoomPulse{ from{transform:scale(3)} to{transform:scale(3.36)} }
+@keyframes imageShake{
+  0%{filter:contrast(1.3) brightness(1.1) hue-rotate(0deg)}
+  50%{filter:contrast(1.5) brightness(1.3) hue-rotate(10deg) saturate(2)}
+  100%{filter:contrast(1.3) brightness(1.1) hue-rotate(-5deg) saturate(1.5)}
+}
+</style>
+</head>
+<body>
+<audio id="map6-bgm" src="caidan.mp3" autoplay loop volume="0.6" style="display:none"></audio>
+<canvas id="c"></canvas>
+<!-- 黑影红框：独立 HTML 元素，绕开 canvas 的 grayscale 滤镜 -->
+<div id="chaser-frame" style="position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:5;display:none"></div>
+<div id="jumpscare-overlay"><div id="jumpscare-flash"></div><img id="jumpscare-img" src="goast.png" alt=""></div>
+<script>
+// 外部依赖兜底
+window.go = window.go || function(u){ location.href=u; };
+window.GameTime = window.GameTime || { label:function(){ return null; } };
+
+// 占位 BGM —— map6 使用独立的 <audio> 标签，禁用 bgm.js 合成器
+window.BGM = {
+  tryPlaySwitchSound:function(){},
+  playStair:function(cb){cb&&cb();},
+  playComputer:function(){},
+  startChase:function(){},
+  start:function(){},   // 禁止合成器启动
+  stop:function(){},
+  toggle:function(){},
+  setVolume:function(){}
+};
+
+// 如果 autoplay 被浏览器拦截，首次用户交互时补播
+document.addEventListener('DOMContentLoaded', function(){
+  var bgm = document.getElementById('map6-bgm');
+  if(!bgm) return;
+  bgm.volume = 0.6;
+  var p = bgm.play();
+  if(p && p.catch){
+    p.catch(function(){
+      var once = function(){
+        bgm.play().catch(function(){});
+        document.removeEventListener('keydown', once);
+        document.removeEventListener('click', once);
+      };
+      document.addEventListener('keydown', once);
+      document.addEventListener('click', once);
+    });
+  }
+});
+
+(function(){
+var C=document.getElementById('c');
+var ctx=C.getContext('2d');
+
+var W=960,H=540;
+C.width=W;C.height=H;
+
+function resize(){
+  var s=Math.min(window.innerWidth/W,window.innerHeight/H);
+  C.style.width=(W*s)+'px';
+  C.style.height=(H*s)+'px';
+}
+resize();window.addEventListener('resize',resize);
+
+// ── Palette ──
+var P={
+  BG:'#0a0a0a',
+  WALL:'#2a2a2a', WALL2:'#3a3a3a', WALL3:'#444',
+  FLOOR:'#15130f',
+  CORR:'#1a1814',
+  HALL:'#181818',
+  ROOM:'#1a1a1a',
+  DARK:'#111', TEXT:'#777',
+  HINT:'#8a7a5a',
+  RED:'#883333', GREEN:'#3a5a3a', BLUE:'#3a4a6a', YELLOW:'#6a5a30',
+  PLAYER:'#8a8a8a', PLAYER2:'#bbb',
+  DIALOG_BG:'#111', DIALOG_BORDER:'#444', DIALOG_TITLE:'#bbb', DIALOG_TEXT:'#888',
+  HUD:'#555',
+  CRT_SCREEN:'#0a1a0a', CRT_BODY:'#333', CRT_GLOW:'rgba(60,180,60,0.3)',
+  DOOR:'#2a2a20', INTERACT:'#888',
+  // 实验室主题色
+  LAB:'#0e1614', LAB2:'#13201c', GLASS:'#16242a',
+  RUST:'#3a2a18', RUST2:'#4a3620',
+  TAPE:'#5a5a20', TAPE2:'#3a3a14',
+  BLOOD:'#3a1010', BLOOD2:'#521414',
+  SPEC:'#10202a', MACHINE:'#3a3a40', MACHINE2:'#5a5a64',
+  CHALK:'#6a6a60'
+};
+
+// ── Map Data：门字形大走廊（倒 U 形环廊 + 中央实验核心区）──
+var B={ L:80, T:40, R:880, B:500 };
+var CW=B.R-B.L;   // 800
+var CH=B.B-B.T;   // 460
+
+// 中央区域（仅用于定位中央仪器，已不再围墙）
+var core={ x:230, y:130, w:500, h:280 };   // y:130..410
+var coreCx=core.x+core.w/2;
+
+// 底部入口缺口（门字形下方开口）
+var gapX1=455, gapX2=505;
+
+// ── 碰撞墙体 ──
+var walls=[];
+// 外墙
+walls.push({x:B.L,y:B.T,w:CW,h:4});           // 顶
+walls.push({x:B.L,y:B.T,w:4,h:CH});           // 左
+walls.push({x:B.R-4,y:B.T,w:4,h:CH});         // 右
+walls.push({x:B.L,y:B.B-4,w:gapX1-B.L,h:4});  // 底左（到缺口）
+walls.push({x:gapX2,y:B.B-4,w:B.R-gapX2,h:4});// 底右（缺口后）
+// 中央实验仪器（不再围墙，直接置于地面，本体不可穿过）
+var machine={ x:coreCx-45, y:core.y+40, w:90, h:120 };
+
+// 地面障碍物（外形各不相同，可碰撞）
+var obstacles=[
+  {x:118,y:206,w:42,h:58,kind:'cabinet'},  // 锈蚀柜
+  {x:120,y:402,w:32,h:14,kind:'desk'},     // 翻倒课桌
+  {x:808,y:226,w:44,h:60,kind:'freezer'},  // 实验冷柜
+  {x:824,y:382,w:26,h:30,kind:'barrel'},   // 化学桶
+  {x:250,y:54, w:46,h:42,kind:'shelf'},    // 储物架
+  {x:600,y:56, w:44,h:44,kind:'freezer'},  // 实验冷柜
+  {x:298,y:444,w:34,h:40,kind:'crate'},    // 木箱堆
+  {x:648,y:446,w:22,h:26,kind:'chair'},    // 断腿椅
+  {x:300,y:248,w:42,h:58,kind:'cabinet'},  // 锈蚀柜
+  {x:632,y:248,w:42,h:58,kind:'cabinet'}   // 锈蚀柜
+];
+walls.push({x:machine.x,y:machine.y,w:machine.w,h:machine.h}); // 仪器本体
+for(var oi=0;oi<obstacles.length;oi++){ walls.push({x:obstacles[oi].x,y:obstacles[oi].y,w:obstacles[oi].w,h:obstacles[oi].h}); }
+
+// ── 交互区（门字形环廊上的可调查点）──
+var interactZones=[
+  {x:gapX1,y:B.B-26,w:gapX2-gapX1,h:26, id:'exit',         label:'地下配电室',       type:'exit',     pw:null,  docId:null},
+  {x:B.L+12,y:B.T+44,w:34,h:46,        id:'door_left',     label:'小门',             type:'door_left', pw:null,  docId:'door_left'},
+  {x:88,    y:330,  w:66, h:54,        id:'board_lab',     label:'残破黑板',         type:'doc',      pw:null,  docId:'board_lab'},
+  {x:machine.x,y:machine.y,w:machine.w,h:machine.h, id:'core', label:'实验核心仪器 NM-2005', type:'machine', pw:null, docId:null},
+  {x:790,   y:150,  w:60, h:70,        id:'mirror_lab',    label:'布满灰尘的镜子',   type:'doc',      pw:null,  docId:'mirror'},
+  {x:786,   y:300,  w:78, h:54,        id:'report_lab',   label:'散落实验报告',     type:'doc',      pw:null,  docId:'report'}
+];
+
+// ── 文档 ──
+var docs={
+  cabinet_lab:{
+    title:'锈蚀安全柜（已解锁）',
+    text:'柜门密码为关停年份 2008。\n\n实验日志残页：\n『NM-2005 核心仪器仍在自运行。封条已贴，但电力未断。\n若有人拉下总闸并按下红色按钮，仪器才会真正停止。\n——这不是我该做的。』\n\n柜中还有半瓶福尔马林与一张学生名单（多处被划去）。'
+  },
+  board_lab:{
+    title:'残破黑板',
+    text:'（粉笔字大半模糊，依稀可辨）\n\n『严禁……三楼……仪器……\n放学后……不要回应走廊里的朗读声……\n第7条校规：████████\n第8条校规：████████████』'
+  },
+  core:{
+    title:'实验核心区·观察窗',
+    text:'厚重防爆玻璃后，一台白色仪器（标号 NM-2005）仍在低鸣。\n红色指示灯有节奏地闪烁，像在呼吸。\n仪器旁散落着被撕碎的实验记录。\n你感到它在「等」着什么。'
+  },
+  report:{
+    title:'散落的实验报告',
+    text:'《关于 NM-2005 的稳定性测试（第8次）》\n……受试者出现记忆混淆与「无脸」幻觉……\n最后一页被血浸透，只留一行字：\n『把那台机器关掉。』'
+  },
+  mirror:{
+    title:'布满灰尘的镜子',
+    text:'柜门后面压着半张被潮气泡烂的旧文件，\n纸边焦黑，勉强能辨认出几行残缺的字迹：\n\n一楼教室...............\n王伯的..在职.....................\n画............作者.......生日..............\n张老师......隐藏的真相.............\n机器.......码...................\n\n（剩下的字迹已被水渍和霉斑吞没，看不清了）'
+  },
+  door_left:{
+    title:'小门',
+    text:'还是救人要紧。'
+  }
+};
+
+// ── 状态 ──
+var player={
+  x:150, y:460, w:12, h:18, vx:0, vy:0, speed:1.8,
+  facing:0, frame:0, walkTimer:0
+};
+window.__xyzh_player=player;
+(function(){
+  try{
+    var r=JSON.parse(sessionStorage.getItem('xyzh_resume')||'null');
+    if(r && r.map==='map6.html'){ player.x=r.x; player.y=r.y; sessionStorage.removeItem('xyzh_resume'); }
+  }catch(e){}
+})();
+
+// ── 相机跟随系统 ──
+var CAM_ZOOM=2.5;
+var camera=null;
+function updateCamera(){
+  if(!camera){ camera={x:player.x+player.w/2, y:player.y+player.h/2}; return; }
+  var tx=player.x+player.w/2;
+  var ty=player.y+player.h/2;
+  var vw=W/CAM_ZOOM, vh=H/CAM_ZOOM;
+  if(vw<B.R-B.L){ tx=Math.max(B.L+vw/2, Math.min(B.R-vw/2, tx)); }
+  if(vh<B.B-B.T){ ty=Math.max(B.T+vh/2, Math.min(B.B-vh/2, ty)); }
+  camera.x=tx; camera.y=ty;
+}
+
+// ── 追逐黑影（A* 寻路，跨楼层持续）──
+var chaser=null;
+var chaserDelay=0;
+var redFlashOn=false;
+var CHASE_CHASER_RATIO=0.8;
+// A* pathfinding
+var CELL_SIZE=20;
+var PATH_RECALC=12;
+var chaserPath=[];
+var pathRecalcCounter=0;
+var cachedGrid=null;
+var chaseTriggered=false;
+var caughtDeathStart=0;
+var playerDead=false;
+function saveChaserRel(){
+  if(!chaser) return;
+  try{ sessionStorage.setItem('chaserRel', JSON.stringify({dx:chaser.x-player.x, dy:chaser.y-player.y})); }catch(e){}
+}
+
+var keys={};
+var dialog=null;
+var pwDialog=null;
+var interactionHint=null;
+var screenShake=0;
+var tipText='';
+var tipTimer=0;
+var cabinetUnlocked=false;
+var machineOff=false;        // NM-2005 是否已关停
+var machineScreen=null;      // 机器显示屏状态
+function genMachineCode(){ var s=''; for(var i=0;i<16;i++) s+=Math.floor(Math.random()*10); return s+'2005'; } // 20位，末4位2005
+// NM-2005 停机密码：玩家需输入此 MD5 串以关停机器
+var MACHINE_CODE='de37726982ee159fcf5b9e1ae28f43fb';
+console.log('[NM-2005] 机器编码(调试):', MACHINE_CODE); // 测试用，正式版可在游戏内某处放置该编码
+
+// ── 陈宇（被困在机器里的小孩）──
+// 机器关停后从机器里出来，以对话泡泡告诉玩家身份
+// 之后采用和 map7 一致的轨迹复刻：记录主角最近 N 帧的位置，陈宇复刻 N 帧前的路径
+var CHENYU_DELAY_FRAMES = 12;   // 0.2 秒 @ 60fps（与 map7 一致）
+var playerTrail = [];           // 主角最近 N 帧 (x,y,facing,frame) 环形缓冲
+var chenYu={
+  active:false,         // 是否已被解救并跟随玩家
+  // 出现动画（从机器里爬出）
+  spawnT:0,             // 0..1 出现进度（0=在机器内，1=完全出来）
+  spawnX:0, spawnY:0,   // 出现动画起点（机器位置）
+  // 当前位置
+  x:0, y:0,
+  facing:2, frame:0,
+  // 对话序列（玩家按 F/任意键推进）
+  bubble:null,          // {lines:[...], idx:0, wait:0, holdFrames:0}
+  // 漂移（让人物有点自然呼吸感）
+  bob:0
+};
+// 陈宇的对话（按 F 或点击逐句推进）
+var CHENYU_DIALOG=[
+  '……',
+  '谢谢你……把我救了出来。',
+  '我是陈宇。三年前被带进这台机器做实验。',
+  '请你带我离开这里。'
+];
+var CHENYU_MACHINE_X=520; // 机器中心 x（用于出现动画起点）
+var CHENYU_MACHINE_Y=200; // 机器中心 y
+
+// ── 输入 ──
+window.addEventListener('keydown',function(e){
+  keys[e.key.toLowerCase()]=true;
+  if(e.key==='f'||e.key==='F'){
+    e.preventDefault();
+    if(dialog){ closeDialog(); return; }
+    if(pwDialog){ submitPw(); return; }
+    // 机器屏打开时：F 必须能作为普通字符输入密码框（由下方"密码输入"监听器写入 machineScreen.input）
+    if(machineScreen) return;
+    // 陈宇对话推进：仅当机器已关停、陈宇出现、且当前有对话且没有 holdFrames 等待
+    if(machineOff && chenYu.active && chenYu.bubble && chenYu.bubble.lines && chenYu.bubble.lines.length>0 && chenYu.bubble.holdFrames<=0){
+      chenYu.bubble.idx++;
+      if(chenYu.bubble.idx >= chenYu.bubble.lines.length){
+        // 对话结束：清空 bubble，陈宇进入常驻跟随
+        chenYu.bubble = null;
+        BGM.tryPlaySwitchSound();
+        // 对话结束 → 强制开启追逐战！黑影从底部大门生成
+        if(!chaseTriggered){
+          chaseTriggered = true;
+          redFlashOn = true;
+          chaserDelay = 36;
+          chaser = {x:gapX1+(gapX2-gapX1)/2-9, y:B.B-28, w:18, h:24, vx:0, vy:0};
+          chaserPath = [];
+          pathRecalcCounter = 0;
+          cachedGrid = null;
+          try{ sessionStorage.setItem('chaseOn','1'); }catch(e){}
+          if(typeof BGM!=='undefined' && BGM.startChase) BGM.startChase();
+          tip('陈宇紧紧拉着你的衣角。身后传来沉重的脚步声……快跑！');
+        } else {
+          tip('陈宇紧紧拉着你的衣角，跟在你身后');
+        }
+      } else {
+        chenYu.bubble.holdFrames = 60; // 每句 1 秒后才可继续
+        BGM.tryPlaySwitchSound();
+      }
+      return;
+    }
+    if(interactionHint){ handleInteraction(interactionHint); }
+  }
+  if(e.key==='Escape'){
+    if(dialog) closeDialog();
+    if(pwDialog) closePwDialog();
+    if(machineScreen) closeMachineScreen();
+  }
+  // 方向键和移动键阻止默认（防止页面滚动等）
+  if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key)){
+    e.preventDefault();
+  }
+  // F 键在机器屏/密码框打开时不要被全局 preventDefault，让下方密码输入监听器能读到 e.key
+  if((e.key==='f'||e.key==='F') && !machineScreen && !pwDialog){
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup',function(e){ keys[e.key.toLowerCase()]=false; });
+
+// 鼠标点击：命中机器屏的「确认关停」按钮才提交
+window.addEventListener('mousedown',function(e){
+  if(!machineScreen) return;
+  // canvas 实际渲染尺寸与坐标系按 CSS 缩放换算
+  var rect=C.getBoundingClientRect();
+  var scaleX=W/rect.width, scaleY=H/rect.height;
+  var mx=(e.clientX-rect.left)*scaleX, my=(e.clientY-rect.top)*scaleY;
+
+  // ★ 调试按钮：免密关停（无视密码，直接走关停成功流程）
+  if(!machineOff && machineScreen.debugBtnRect){
+    var dr=machineScreen.debugBtnRect;
+    if(mx>=dr.x && mx<=dr.x+dr.w && my>=dr.y && my<=dr.y+dr.h){
+      console.log('[调试] 免密关停 NM-2005');
+      // 模拟正确密码走通流程
+      machineScreen.input = MACHINE_CODE;
+      submitMachineScreen();
+      return;
+    }
+  }
+
+  if(machineOff) return;  // 已关停界面下只显示关闭按钮
+  var r=machineScreen.btnRect;
+  if(!r) return;
+  if(mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h){
+    submitMachineScreen();
+  }
+});
+
+// ── 碰撞 ──
+function collides(rx,ry,rw,rh){
+  for(var i=0;i<walls.length;i++){
+    var w=walls[i];
+    if(rx<w.x+w.w && rx+rw>w.x && ry<w.y+w.h && ry+rh>w.y) return true;
+  }
+  if(rx<B.L || rx+rw>B.R) return true;
+  if(ry<B.T || ry+rh>B.B) return true;
+  return false;
+}
+function nearZone(px,py,zone){
+  var cx=px+player.w/2, cy=py+player.h/2;
+  var zcx=zone.x+zone.w/2, zcy=zone.y+zone.h/2;
+  var dx=Math.abs(cx-zcx), dy=Math.abs(cy-zcy);
+  return dx<zone.w/2+22 && dy<zone.h/2+34;
+}
+
+// ── 交互 ──
+function handleInteraction(hint){
+  if(hint.type==='password'){
+    openPwDialog(hint.id, hint.pw, hint.docId);
+  }else if(hint.type==='doc'){
+    var d=docs[hint.docId];
+    if(d){ openDialog(d.title,d.text); BGM.tryPlaySwitchSound(); }
+  }else if(hint.type==='exit'){
+    // 大门紧锁，不跳转回 mp5
+    BGM.tryPlaySwitchSound();
+    openDialog('地下配电室 · 大门', '你用力拉了拉那扇通往地下配电室的门……\n门锁上了。');
+  }else if(hint.type==='machine'){
+    openMachineScreen();
+  }else if(hint.type==='door_left'){
+    // 解救陈宇后（陈宇对话已结束、能正常跟随）小门才可打开 → 进入走廊 map7
+    // 要求：陈宇已激活（machineOff 触发 spawnChenYu 后 active=true）
+    //       陈宇的对话泡泡已走完（bubble=null），确保能一起走
+    // 小门无延迟：条件满足即开，追逐战状态也会随 sessionStorage 传入 map7
+    if(machineOff && chenYu.active && !chenYu.bubble){
+      // 保存陈宇位置 + 追逐状态到 sessionStorage，map7 加载时恢复
+      try{
+        sessionStorage.setItem('xyzh_map7_from', 'map6');
+        sessionStorage.setItem('xyzh_chenyu', JSON.stringify({
+          x: chenYu.x, y: chenYu.y, active: true
+        }));
+        // 保存追逐状态：map7 读 chaseOn 来生成黑影
+        if(chaseTriggered && chaser){
+          saveChaserRel();
+        }
+      }catch(e){}
+      BGM.tryPlaySwitchSound();
+      tip('推开小门，踏入长长的走廊…');
+      go('map7.html');
+    }else if(machineOff && chenYu.active && chenYu.bubble){
+      // 机器已关、陈宇已被解救，但对话还没走完 → 提示先聊完
+      openDialog('小门', '陈宇拉了拉你的衣角：\n"先、先听我说完……"');
+    }else{
+      openDialog('小门', '你试着推了推小门——\n门从里面反锁着，声音很沉闷。\n（也许要先救出机器里的孩子？）');
+    }
+  }
+}
+
+function findInteraction(){
+  interactionHint=null;
+  for(var i=0;i<interactZones.length;i++){
+    var z=interactZones[i];
+    if(nearZone(player.x,player.y,z)){ interactionHint=z; return; }
+  }
+}
+
+// ── 对话框 ──
+function openDialog(title,text){ dialog={title:title,text:text}; }
+function closeDialog(){ dialog=null; }
+
+function openPwDialog(id,pw,docId){
+  pwDialog={targetId:id,correct:pw,docId:docId,input:'',error:'',justOpened:true};
+}
+function closePwDialog(){ pwDialog=null; }
+function submitPw(){
+  var p=pwDialog;
+  if(p.input===p.correct){
+    pwDialog=null;
+    if(p.targetId==='cabinet_lab'){ cabinetUnlocked=true; }
+    var d=docs[p.docId];
+    if(d){ openDialog(d.title,d.text); BGM.tryPlaySwitchSound(); }
+  }else{
+    p.error='密码错误';
+    p.input='';
+  }
+}
+
+// ── 机器显示屏 ──
+function openMachineScreen(){ machineScreen={input:'',error:'',justOpened:true}; }
+function closeMachineScreen(){ machineScreen=null; }
+function submitMachineScreen(){
+  var m=machineScreen;
+  // 大小写不敏感比较（统一转小写，HEX 字符 a-f / A-F 均接受）
+  if((m.input||'').toLowerCase()===MACHINE_CODE.toLowerCase()){
+    machineScreen=null;
+    machineOff=true;
+    openDialog('NM-2005 · 已关停','仪器发出一声低沉的嗡鸣，红色指示灯彻底熄灭。\n显示屏最后闪过一行字：\n『……谢谢你。』\n\n走廊深处，似乎有什么东西松开了。');
+    BGM.tryPlaySwitchSound();
+    // 启动陈宇出现动画：从机器中心爬出
+    spawnChenYu();
+  }else{
+    m.error='机器编码错误';
+    m.input='';
+  }
+}
+
+// 启动陈宇出现 + 对话
+function spawnChenYu(){
+  if(chenYu.active) return;
+  // 出现动画起点 = 机器中心
+  var sx = machine.x + machine.w/2 - 6;
+  var sy = machine.y + machine.h/2 - 9;
+  chenYu.spawnX=sx; chenYu.spawnY=sy;
+  chenYu.x=sx; chenYu.y=sy;
+  chenYu.spawnT=0;
+  chenYu.active=true;
+  chenYu.bubble={ lines:CHENYU_DIALOG.slice(), idx:0, holdFrames:90, justOpened:true };
+}
+
+// ── 跳脸惊吓（预留）──
+function triggerJumpscare(){
+  var overlay=document.getElementById('jumpscare-overlay');
+  var flash=document.getElementById('jumpscare-flash');
+  playJumpscareSound();
+  overlay.classList.add('active');
+  flash.classList.add('active');
+  setTimeout(function(){ flash.classList.remove('active'); },300);
+  screenShake=60;
+  setTimeout(function(){ overlay.classList.remove('active'); screenShake=0; },2000);
+  overlay.onclick=function(){
+    overlay.classList.remove('active'); flash.classList.remove('active'); screenShake=0; overlay.onclick=null;
+  };
+}
+var jumpscareBuffer=null;
+(function preloadJumpscare(){
+  try{
+    var req=new XMLHttpRequest();
+    req.open('GET','惨叫女鬼叫_爱给网_aigei_com.mp3',true);
+    req.responseType='arraybuffer';
+    req.onload=function(){
+      if(req.status===200||req.status===0){
+        (new(window.AudioContext||window.webkitAudioContext)()).decodeAudioData(req.response,function(buf){jumpscareBuffer=buf;},function(){});
+      }
+    };
+    req.send();
+  }catch(e){}
+})();
+function playJumpscareSound(){
+  try{
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    if(ctx.state==='suspended') ctx.resume();
+    if(jumpscareBuffer){
+      var src=ctx.createBufferSource(); src.buffer=jumpscareBuffer;
+      var g=ctx.createGain(); g.gain.value=1.0; src.connect(g); g.connect(ctx.destination); src.start(0);
+    }else{
+      var a=new Audio('惨叫女鬼叫_爱给网_aigei_com.mp3'); a.volume=1.0; a.play().catch(function(){});
+    }
+  }catch(e){}
+}
+
+function tip(msg){ tipText=msg; tipTimer=120; }
+
+// ── 更新 ──
+function update(){
+  if(caughtDeath){
+    if(Date.now()-caughtDeathStart>2000) go('bad_ending.html');
+    return;
+  }
+  if(playerDead) return;
+  var mx=0,my=0;
+  if(keys['w']||keys['arrowup']) my=-1;
+  if(keys['s']||keys['arrowdown']) my=1;
+  if(keys['a']||keys['arrowleft']) mx=-1;
+  if(keys['d']||keys['arrowright']) mx=1;
+  if(mx!==0&&my!==0){ mx*=0.707;my*=0.707; }
+  var moving=mx!==0||my!==0;
+  if(moving){
+    var nx=player.x+mx*player.speed;
+    if(!collides(nx,player.y,player.w,player.h)) player.x=nx;
+    var ny=player.y+my*player.speed;
+    if(!collides(player.x,ny,player.w,player.h)) player.y=ny;
+    if(Math.abs(mx)>Math.abs(my)){ player.facing=mx>0?3:2; }
+    else if(my!==0){ player.facing=my>0?0:1; }
+    player.walkTimer++;
+    if(player.walkTimer>12){ player.frame=(player.frame+1)%2; player.walkTimer=0; }
+    Footsteps.update(true, player.walkTimer);
+  }else{
+    player.frame=0; player.walkTimer=0; Footsteps.update(false,0);
+  }
+  findInteraction();
+  updateChaser();
+  updateChenYu();
+  updateCamera();
+  if(tipTimer>0) tipTimer--;
+  if(tipTimer<=0) tipText='';
+  if(screenShake>0) screenShake--;
+}
+
+// ── 像素绘制基础 ──
+function pxRect(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
+function pxText(text,x,y,c,size,align){
+  ctx.fillStyle=c||P.TEXT; ctx.font=(size||12)+'px "Courier New","SimSun",monospace';
+  ctx.textAlign=align||'left'; ctx.textBaseline='top'; ctx.fillText(text,x,y);
+}
+function drawBorder(x,y,w,h,c,t){
+  t=t||2; pxRect(x,y,w,t,c); pxRect(x,y+h-t,w,t,c); pxRect(x,y,t,h,c); pxRect(x+w-t,y,t,h,c);
+}
+
+function drawTimeHUD(){
+  if(typeof GameTime==='undefined') return;
+  var t=GameTime.label(); if(!t) return;
+  var txt='时间 '+t; var pw=txt.length*8+16; var ph=18;
+  var px=W-pw-8, py=4;
+  pxRect(px,py,pw,ph,'rgba(12,10,6,0.88)'); drawBorder(px,py,pw,ph,'#b8902f');
+  pxText(txt,px+pw/2,py+5,'#ffe9a8',9,'center');
+}
+
+function drawPlayer(px,py){
+  var ox=Math.floor(px), oy=Math.floor(py);
+  var pw=12,ph=18, f=player.facing;
+  pxRect(ox+2,oy+ph-2,10,2,'rgba(0,0,0,0.5)');
+  var legOff=player.frame*2;
+  if(f===0){
+    pxRect(ox+2,oy+11,3,5,P.PLAYER); pxRect(ox+7,oy+11,3,5,P.PLAYER);
+    if(player.frame===0){ pxRect(ox+2,oy+13+legOff,3,3,'#444'); pxRect(ox+7,oy+13-legOff,3,3,'#444'); }
+    else { pxRect(ox+2,oy+13-legOff,3,3,'#444'); pxRect(ox+7,oy+13+legOff,3,3,'#444'); }
+  }else if(f===1){ pxRect(ox+2,oy+11,3,5,P.PLAYER); pxRect(ox+7,oy+11,3,5,P.PLAYER); }
+  else { pxRect(ox+2,oy+11,3,5,P.PLAYER); pxRect(ox+7,oy+11,3,5,P.PLAYER);
+    if(player.frame===0) pxRect(ox+2,oy+13+legOff,3,3,'#444'); else pxRect(ox+7,oy+13+legOff,3,3,'#444'); }
+  pxRect(ox+2,oy+6,8,7,'#777'); pxRect(ox+3,oy+6,6,7,P.PLAYER);
+  if(f===2){ pxRect(ox,oy+7,3,4,P.PLAYER); } else if(f===3){ pxRect(ox+9,oy+7,3,4,P.PLAYER); }
+  else{ pxRect(ox,oy+7,3,4,P.PLAYER); pxRect(ox+9,oy+7,3,4,P.PLAYER); }
+  pxRect(ox+3,oy,6,7,P.PLAYER2); pxRect(ox+4,oy+1,4,5,'#ddd');
+  if(f===0){ pxRect(ox+5,oy+3,1,1,'#222');pxRect(ox+8,oy+3,1,1,'#222'); }
+  else if(f===1){ pxRect(ox+5,oy+2,1,1,'#222');pxRect(ox+8,oy+2,1,1,'#222'); }
+  else if(f===2){ pxRect(ox+4,oy+3,1,1,'#222'); }
+  else{ pxRect(ox+9,oy+3,1,1,'#222'); }
+  pxRect(ox+3,oy,6,2,'#555');
+}
+
+// 绘制陈宇（穿蓝白校服的小孩，12×18 像素，签名与 map7 一致：drawChenYu(px,py)）
+function drawChenYu(px,py){
+  if(!chenYu.active) return;
+  // 出现动画：spawnT 从 0 到 1（透明度 + 偏移）
+  if(chenYu.spawnT<1){
+    chenYu.spawnT = Math.min(1, chenYu.spawnT + 0.012);
+  }
+  chenYu.bob = (chenYu.bob + 0.08) % (Math.PI*2);
+  var ox=Math.floor(px), oy=Math.floor(py + Math.sin(chenYu.bob)*0.6);
+  var alpha = 0.4 + 0.6 * chenYu.spawnT;
+  // 半透明呼吸感（被囚禁多年、身体虚弱）
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // 影子
+  pxRect(ox+2,oy+18-2,10,2,'rgba(0,0,0,0.4)');
+  // 双腿（按 facing + frame 摆动 → 复刻主角动作，与 map7 一致）
+  var f = (typeof chenYu.facing === 'number') ? chenYu.facing : 2;
+  var fr = (typeof chenYu.frame === 'number') ? chenYu.frame : 0;
+  var legOff = fr*2;
+  if(f===0){
+    // 面下
+    pxRect(ox+2, oy+11, 3, 5, '#dfe6d8');
+    pxRect(ox+7, oy+11, 3, 5, '#dfe6d8');
+    if(fr===0){ pxRect(ox+2, oy+13+legOff, 3, 3, '#bcc6ba'); pxRect(ox+7, oy+13-legOff, 3, 3, '#bcc6ba'); }
+    else { pxRect(ox+2, oy+13-legOff, 3, 3, '#bcc6ba'); pxRect(ox+7, oy+13+legOff, 3, 3, '#bcc6ba'); }
+  } else if(f===3){
+    // 面右
+    pxRect(ox+2, oy+11, 3, 5, '#dfe6d8');
+    pxRect(ox+7, oy+11, 3, 5, '#dfe6d8');
+    if(fr===0) pxRect(ox+2, oy+13+legOff, 3, 3, '#bcc6ba');
+    else pxRect(ox+7, oy+13+legOff, 3, 3, '#bcc6ba');
+  } else {
+    // 面左（默认 f===2）/ 面上
+    pxRect(ox+2, oy+11, 3, 5, '#dfe6d8');
+    pxRect(ox+7, oy+11, 3, 5, '#dfe6d8');
+    if(fr===0) pxRect(ox+2, oy+13+legOff, 3, 3, '#bcc6ba');
+    else pxRect(ox+7, oy+13+legOff, 3, 3, '#bcc6ba');
+  }
+  // 身体（蓝白校服：上半身深蓝、下摆白）
+  pxRect(ox+2,oy+6,8,5,'#1a3a72');
+  pxRect(ox+2,oy+10,8,2,'#f4f4f0');
+  // 胳膊（按 facing 朝向）
+  if(f===2){ pxRect(ox+10, oy+7, 2, 4, '#1a3a72'); }
+  else if(f===3){ pxRect(ox, oy+7, 2, 4, '#1a3a72'); }
+  else { pxRect(ox, oy+7, 2, 4, '#1a3a72'); pxRect(ox+10, oy+7, 2, 4, '#1a3a72'); }
+  // 头（苍白）
+  pxRect(ox+3,oy,6,7,'#e0d8c8');
+  // 头发
+  pxRect(ox+3,oy,6,2,'#1a1a1a');
+  // 眼睛（按 facing）
+  if(f===2){
+    pxRect(ox+3, oy+3, 1, 1, '#1a1a1a');
+  } else if(f===3){
+    pxRect(ox+8, oy+3, 1, 1, '#1a1a1a');
+  } else {
+    pxRect(ox+4, oy+3, 1, 1, '#1a1a1a');
+    pxRect(ox+7, oy+3, 1, 1, '#1a1a1a');
+  }
+  // 嘴（虚弱微笑，仅面向左/右时省略，保持原本外观）
+  if(f===0 || f===1){
+    pxRect(ox+5,oy+5,2,1,'#704030');
+  }
+
+  ctx.restore();
+
+  // 对话泡泡：在陈宇头顶，显示当前 line
+  if(chenYu.bubble && chenYu.bubble.lines && chenYu.bubble.lines.length>0){
+    var line = chenYu.bubble.lines[chenYu.bubble.idx] || '';
+    var bw = Math.max(80, line.length * 8 + 18);
+    var bh = 24;
+    var bx = Math.floor(ox - bw/2 + 6);
+    var by = Math.floor(oy - bh - 6);
+    if(bx < 4) bx = 4;
+    if(bx + bw > W - 4) bx = W - bw - 4;
+    if(by < 4) by = Math.floor(oy + 22);
+    // 气泡背景
+    ctx.save();
+    ctx.fillStyle = 'rgba(245,240,225,0.95)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#3a2a18';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(bx+0.5, by+0.5, bw-1, bh-1);
+    // 气泡尾巴
+    ctx.beginPath();
+    ctx.moveTo(bx + bw/2 - 4, by + bh);
+    ctx.lineTo(ox + 6, by + bh + 6);
+    ctx.lineTo(bx + bw/2 + 4, by + bh);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(245,240,225,0.95)';
+    ctx.fill();
+    ctx.stroke();
+    // 文字
+    ctx.fillStyle = '#3a2a18';
+    ctx.font = '11px "宋体",SimSun,serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(line, bx + bw/2, by + bh/2);
+    // 提示"按 F 继续"
+    if(chenYu.bubble.holdFrames<=0){
+      ctx.font = '9px "宋体",SimSun,serif';
+      ctx.fillStyle = '#888';
+      ctx.fillText('按 F 继续', bx + bw/2, by + bh + 12);
+    }
+    ctx.restore();
+  }
+}
+
+// ── 黑影追逐（A* 寻路，自动绕过障碍物）──
+function buildGrid(){
+  var gw=Math.ceil((B.R-B.L)/CELL_SIZE);
+  var gh=Math.ceil((B.B-B.T)/CELL_SIZE);
+  var g=[];
+  for(var gx=0;gx<gw;gx++){
+    g[gx]=[];
+    for(var gy=0;gy<gh;gy++){
+      var cx=B.L+gx*CELL_SIZE, cy=B.T+gy*CELL_SIZE;
+      var blocked=false;
+      for(var i=0;i<walls.length;i++){
+        var w=walls[i];
+        if(cx<w.x+w.w && cx+CELL_SIZE>w.x && cy<w.y+w.h && cy+CELL_SIZE>w.y){
+          blocked=true; break;
+        }
+      }
+      if(cx<B.L+4 || cx+CELL_SIZE>B.R-4 || cy<B.T+4 || cy+CELL_SIZE>B.B-4) blocked=true;
+      g[gx][gy]=blocked?1:0;
+    }
+  }
+  return g;
+}
+function getGrid(){ if(!cachedGrid) cachedGrid=buildGrid(); return cachedGrid; }
+function worldToGrid(wx,wy){
+  return {x:Math.floor((wx-B.L)/CELL_SIZE), y:Math.floor((wy-B.T)/CELL_SIZE)};
+}
+function gridToWorld(gx,gy){
+  return {x:B.L+gx*CELL_SIZE+CELL_SIZE/2, y:B.T+gy*CELL_SIZE+CELL_SIZE/2};
+}
+function heuristic(x1,y1,x2,y2){ return Math.abs(x1-x2)+Math.abs(y1-y2); }
+function findPath(fromWX,fromWY,toWX,toWY){
+  var grid=getGrid();
+  var gw=grid.length, gh=grid[0].length;
+  var s=worldToGrid(fromWX,fromWY);
+  var g=worldToGrid(toWX,toWY);
+  s.x=Math.max(0,Math.min(gw-1,s.x)); s.y=Math.max(0,Math.min(gh-1,s.y));
+  g.x=Math.max(0,Math.min(gw-1,g.x)); g.y=Math.max(0,Math.min(gh-1,g.y));
+  if(s.x===g.x&&s.y===g.y) return null;
+  if(grid[s.x][s.y]===1||grid[g.x][g.y]===1) return null;
+  var open=[], closed={};
+  var sn={x:s.x,y:s.y,g:0,h:heuristic(s.x,s.y,g.x,g.y),parent:null}; sn.f=sn.g+sn.h;
+  open.push(sn);
+  var dirs=[[0,-1],[0,1],[-1,0],[1,0]];
+  var limit=800;
+  while(open.length>0 && limit-- > 0){
+    var best=0;
+    for(var i=1;i<open.length;i++){ if(open[i].f<open[best].f) best=i; }
+    var cur=open[best];
+    if(cur.x===g.x&&cur.y===g.y){
+      var path=[], node=cur;
+      while(node){ path.unshift(gridToWorld(node.x,node.y)); node=node.parent; }
+      if(path.length>1) path.shift();
+      return path;
+    }
+    open.splice(best,1); closed[cur.x+','+cur.y]=true;
+    for(var d=0;d<dirs.length;d++){
+      var nx=cur.x+dirs[d][0], ny=cur.y+dirs[d][1];
+      if(nx<0||nx>=gw||ny<0||ny>=gh) continue;
+      if(grid[nx][ny]===1) continue;
+      var nk=nx+','+ny; if(closed[nk]) continue;
+      var inOpen=false;
+      for(var oi=0;oi<open.length;oi++){
+        if(open[oi].x===nx&&open[oi].y===ny){
+          inOpen=true; var ng=cur.g+1;
+          if(ng<open[oi].g){ open[oi].g=ng; open[oi].f=ng+open[oi].h; open[oi].parent=cur; }
+          break;
+        }
+      }
+      if(!inOpen){ open.push({x:nx,y:ny,g:cur.g+1,h:heuristic(nx,ny,g.x,g.y),f:cur.g+1+heuristic(nx,ny,g.x,g.y),parent:cur}); }
+    }
+  }
+  return null;
+}
+function drawChaser(){
+  if(!chaser) return;
+  // 黑影本体（仍画在 canvas 上，黑色可被 grayscale 保留）
+  pxRect(chaser.x,chaser.y,chaser.w,chaser.h,'#000');
+  pxRect(chaser.x+chaser.w/2-2,chaser.y-9,4,10,'#000');
+  // 红框改为独立 HTML 元素绘制（绕开 canvas 的 grayscale 滤镜，保持红色）
+  updateChaserFrame();
+}
+function updateChaserFrame(){
+  var div=document.getElementById('chaser-frame');
+  if(!div) return;
+  if(!chaser || caughtDeath){ div.style.display='none'; return; }
+  // 计算 chaser 的屏幕坐标
+  var sx = (chaser.x - 1 - camera.x) * CAM_ZOOM + W/2;
+  var sy = (chaser.y - 10 - camera.y) * CAM_ZOOM + H/2;
+  var sw = (chaser.w + 2) * CAM_ZOOM;
+  var sh = (chaser.h + 10) * CAM_ZOOM;
+  // canvas 相对视口的偏移
+  var rect = document.getElementById('c').getBoundingClientRect();
+  var left = rect.left + sx;
+  var top = rect.top + sy;
+  var glow = 0.5 + 0.5*Math.sin(Date.now()*0.01);
+  var alpha = 0.4 + 0.4*glow;
+  div.style.display='block';
+  div.style.left = left + 'px';
+  div.style.top = top + 'px';
+  div.style.width = sw + 'px';
+  div.style.height = sh + 'px';
+  div.style.border = '2px solid rgba(220,0,0,'+alpha+')';
+  div.style.boxShadow = '0 0 12px rgba(220,0,0,'+(0.3+0.5*glow)+'), inset 0 0 8px rgba(220,0,0,'+(0.2+0.3*glow)+')';
+}
+function updateChaser(){
+  if(!chaser || playerDead) return;
+  if(chaserDelay>0){ chaserDelay--; return; }
+  var ccx=chaser.x+chaser.w/2, ccy=chaser.y+chaser.h/2;
+  var pcx=player.x+player.w/2, pcy=player.y+player.h/2;
+  var dxToPlayer=pcx-ccx, dyToPlayer=pcy-ccy;
+  var distPlayer=Math.sqrt(dxToPlayer*dxToPlayer+dyToPlayer*dyToPlayer);
+  var minDist=80, maxDist=500;
+  var minRatio=0.95, maxRatio=1.8;
+  var t=Math.min(1,Math.max(0,(distPlayer-minDist)/(maxDist-minDist)));
+  var ratio=minRatio+(maxRatio-minRatio)*Math.pow(t,0.5);
+  var ps=player.speed*ratio;
+  pathRecalcCounter--;
+  if(pathRecalcCounter<=0){
+    pathRecalcCounter=PATH_RECALC;
+    var p=findPath(ccx,ccy,pcx,pcy);
+    if(p&&p.length>0) chaserPath=p;
+  }
+  if(chaserPath.length>0){
+    var tgt=chaserPath[0];
+    var dx=tgt.x-ccx, dy=tgt.y-ccy;
+    var dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<3){ chaserPath.shift(); }
+    else{ chaser.x+=dx/dist*ps; chaser.y+=dy/dist*ps; }
+  }else{
+    var dx2=pcx-ccx, dy2=pcy-ccy;
+    var dist2=Math.sqrt(dx2*dx2+dy2*dy2);
+    if(dist2>0){ var vx2=dx2/dist2*ps, vy2=dy2/dist2*ps;
+      var nx2=chaser.x+vx2; if(!collides(nx2,chaser.y,chaser.w,chaser.h)) chaser.x=nx2;
+      var ny2=chaser.y+vy2; if(!collides(chaser.x,ny2,chaser.w,chaser.h)) chaser.y=ny2;
+    }
+  }
+  if(chaser.x<player.x+player.w && chaser.x+chaser.w>player.x &&
+     chaser.y<player.y+player.h && chaser.y+chaser.h>player.y){ triggerChaserDeath(); }
+}
+
+// ── 陈宇跟随：复刻主角 0.2 秒前的路径（与 map7 完全一致）──
+function updateChenYu(){
+  if(!chenYu.active) return;
+  // 出现阶段不跟随（站在机器内，spawnT 由 drawChenYu 累加）
+  if(chenYu.spawnT < 0.6) return;
+
+  // ── 玩家轨迹入队（陈宇复刻用）──
+  // 每帧把主角当前 (x, y, facing, frame) 入队；满 N 帧后陈宇取队首 = 0.2 秒前
+  playerTrail.push({x:player.x, y:player.y, facing:player.facing, frame:player.frame});
+  if(playerTrail.length > CHENYU_DELAY_FRAMES){
+    playerTrail.shift();
+  }
+  // ── 陈宇：复刻主角 0.2 秒前路径 ──
+  chenYu.bob = (chenYu.bob + 0.08) % (Math.PI*2);
+  // 缓冲未满时陈宇站在玩家身后 18px（启动阶段）
+  if(playerTrail.length < CHENYU_DELAY_FRAMES){
+    var bx = player.x, by = player.y;
+    if(player.facing===2) bx += 18;       // 面向左 → 陈宇在右后
+    else if(player.facing===3) bx -= 18;  // 面向右
+    else if(player.facing===0) by += 18;  // 面向下
+    else if(player.facing===1) by -= 18;  // 面向上
+    if(!collides(bx, by, 12, 18)){ chenYu.x = bx; chenYu.y = by; }
+    chenYu.facing = player.facing; chenYu.frame = player.frame;
+  } else {
+    // 缓冲满：取最旧的一帧 = 0.2 秒前主角的位置
+    var snap = playerTrail[0];
+    chenYu.x = snap.x;
+    chenYu.y = snap.y;
+    chenYu.facing = snap.facing;
+    chenYu.frame = snap.frame;
+  }
+
+  // 对话推进
+  if(chenYu.bubble && chenYu.bubble.holdFrames>0){
+    chenYu.bubble.holdFrames--;
+  }
+}
+var caughtDeath=false;
+function triggerChaserDeath(){
+  if(caughtDeath) return;
+  caughtDeath=true;
+  caughtDeathStart=Date.now();
+  try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+  if(chaser){ chaser.x=player.x+player.w/2-chaser.w/2; chaser.y=player.y+player.h/2-chaser.h/2; }
+  if(typeof BGM!=='undefined' && BGM.stopChase) BGM.stopChase();
+}
+function drawChaserDeath(){
+  if(!caughtDeath) return;
+  var alpha=Math.min(1,(Date.now()-caughtDeathStart||0)/500);
+  pxRect(0,0,W,H,'rgba(0,0,0,'+alpha*0.7+')');
+  var sx2=(Math.random()-0.5)*4, sy2=(Math.random()-0.5)*4;
+  pxText('你死了',W/2+sx2+2,H/2+sy2-24+2,'#000',42,'center');
+  pxText('你死了',W/2+sx2,  H/2+sy2-24,  '#a00',42,'center');
+}
+
+// ── 装饰绘制（破败学校 + 实验室元素）──
+function dToppledDesk(x,y){ // 倒塌的课桌
+  pxRect(x,y,22,6,'#2a2418'); pxRect(x+2,y+6,18,3,'#221d12');
+  pxRect(x+2,y+9,4,8,'#1c1810'); pxRect(x+16,y+9,4,8,'#1c1810');
+  pxRect(x+24,y+2,5,4,'#332a1a'); // 翻倒的椅子
+}
+function dBrokenJar(x,y){ // 破碎标本罐
+  pxRect(x,y,12,16,P.GLASS); drawBorder(x,y,12,16,'#2a3a3a',1);
+  pxRect(x+2,y+3,8,10,'rgba(40,90,90,0.35)'); // 残液
+  pxRect(x-2,y+16,6,3,'#2a3a3a'); pxRect(x+10,y+15,7,3,'#2a3a3a'); // 碎片
+}
+function dCabinet(x,y){ // 锈蚀安全柜
+  var c=cabinetUnlocked?P.RUST2:P.RUST;
+  pxRect(x,y,42,58,c); drawBorder(x,y,42,58,'#1a140a',2);
+  pxRect(x+5,y+8,32,18,'#241a0e'); pxRect(x+5,y+30,32,18,'#241a0e');
+  pxRect(x+18,y+14,4,6,'#555'); // 锁
+  if(!cabinetUnlocked) pxText('锁',x+19,y+12,'#aa8',8,'center');
+  else pxText('开',x+19,y+12,'#6a8a6a',8,'center');
+}
+function dFurnitureCabinet(x,y,v){ // 普通锈蚀柜（非交互家具，v 为变体 0/1/2）
+  if(v===undefined) v=0;
+  pxRect(x,y,42,58,P.RUST); drawBorder(x,y,42,58,'#1a140a',2);
+  if(v===0){
+    pxRect(x+5,y+8,32,18,'#241a0e'); pxRect(x+5,y+30,32,18,'#241a0e');
+    pxRect(x+18,y+14,4,6,'#555'); pxText('锁',x+19,y+12,'#aa8',8,'center');
+  }else if(v===1){ // 柜门半开，露出漆黑内腔
+    pxRect(x+5,y+8,32,40,'#241a0e'); pxRect(x+5,y+8,18,40,'#0c0905');
+    pxRect(x+25,y+10,10,36,'#2a1a0e'); pxText('开',x+30,y+12,'#7a7',8,'center');
+  }else{ // 顶层堆着档案盒
+    pxRect(x+5,y+12,32,36,'#241a0e'); pxRect(x+18,y+18,4,6,'#555');
+    pxRect(x+6,y+2,12,8,'#3a2a16'); pxRect(x+22,y+1,12,9,'#3a2a16');
+    pxText('锁',x+19,y+10,'#aa8',8,'center');
+  }
+  // 锈痕
+  pxRect(x+2,y+20,2,14,'rgba(120,60,20,0.5)');
+}
+function dCrate(x,y,w,h){ // 木箱障碍物
+  pxRect(x,y,w,h,'#3a2a18'); drawBorder(x,y,w,h,'#1a140a',2);
+  pxRect(x+3,y+3,w-6,h-6,'#4a3620');
+  pxRect(x+4,y+4,4,4,'#1a140a'); pxRect(x+w-8,y+4,4,4,'#1a140a');
+  pxRect(x+4,y+h-8,4,4,'#1a140a'); pxRect(x+w-8,y+h-8,4,4,'#1a140a');
+  pxRect(x+w/2-1,y+4,2,h-8,'#2a1e10');
+}
+function dFreezer(x,y){ // 实验冷柜（立式）
+  pxRect(x,y,44,60,'#2f3a3a'); drawBorder(x,y,44,60,'#1a2424',2);
+  pxRect(x+5,y+6,34,30,'#1c2626');  // 上层柜门
+  pxRect(x+5,y+40,34,15,'#1c2626'); // 下层柜门
+  pxRect(x+26,y+14,3,14,'#5a6a6a'); // 把手
+  pxRect(x+26,y+45,3,9,'#5a6a6a');
+  pxRect(x+7,y+8,10,6,'rgba(120,200,210,0.25)'); // 霜雾
+  pxText('-20℃',x+22,y+30,'#7fa',7,'center');
+}
+function dBarrel(x,y){ // 化学桶（半透明残液）
+  pxRect(x,y,26,30,'#2a2a30'); drawBorder(x,y,26,30,'#111',2);
+  pxRect(x+2,y+10,22,18,'rgba(80,140,90,0.30)'); // 残液
+  pxRect(x+8,y+2,10,4,'#1a1a1a'); // 桶盖
+  pxRect(x+9,y+3,8,2,'#3a3a3a');
+  pxText('▲',x+13,y+6,'#caa',8,'center');
+}
+function dShelf(x,y){ // 储物架（多层，散落杂物）
+  pxRect(x,y,46,42,'#3a2e1e'); drawBorder(x,y,46,42,'#1a140a',2);
+  pxRect(x+3,y+6,40,3,'#5a4a30'); pxRect(x+3,y+20,40,3,'#5a4a30'); // 层板
+  pxRect(x+6,y-4,8,10,'#4a3620'); pxRect(x+18,y-2,10,8,'#4a3620'); // 顶层杂物
+  pxRect(x+4,y+9,6,11,'#2a1a10'); pxRect(x+22,y+9,8,11,'#2a1a10'); // 中层罐
+  pxRect(x+6,y+23,10,18,'#3a2a18'); // 下层书/盒
+}
+function dBrokenChair(x,y){ // 断腿木椅（歪倒）
+  pxRect(x,y,22,6,'#4a3620'); drawBorder(x,y,22,6,'#2a1e10',1); // 座面
+  pxRect(x+2,y+6,3,12,'#3a2a18');  // 左腿（直）
+  pxRect(x+18,y+6,3,7,'#3a2a18');  // 右腿（断短）
+  pxRect(x-4,y-10,4,12,'#4a3620'); pxRect(x-4,y-10,4,2,'#2a1e10'); // 靠背（歪）
+}
+function dBlackboard(x,y){ // 残破黑板
+  pxRect(x,y,64,50,'#16201a'); drawBorder(x,y,64,50,'#3a2a18',2);
+  for(var i=0;i<3;i++) pxText('██████',x+6,y+8+i*12,P.CHALK,8);
+  pxText('……仪……',x+6,y+8,'#4a4a40',8);
+}
+function dLabBench(x,y){ // 实验台（碎玻璃）
+  pxRect(x,y,30,12,'#2a2a30'); pxRect(x-2,y+12,34,3,'#1c1c20');
+  pxRect(x+4,y-4,3,5,'rgba(180,220,230,0.5)'); pxRect(x+20,y-3,3,4,'rgba(180,220,230,0.4)'); // 碎试管
+}
+function dCaution(x,y,w){ // 警示胶带
+  for(var i=0;i<w;i+=8){ pxRect(x+i,y,4,3,P.TAPE); pxRect(x+i+4,y,4,3,P.TAPE2); }
+}
+function dProjector(x,y){ // 投影仪
+  pxRect(x,y,18,10,'#222'); pxRect(x+4,y-6,10,6,'#2a2a2a'); pxRect(x+6,y-4,6,3,'#444');
+}
+function dUniform(x,y){ // 悬挂校服
+  pxRect(x,y,14,22,'#3a3a44'); pxRect(x+3,y-4,8,4,'#2a2a30');
+  pxRect(x+2,y+6,10,2,'#222'); // 领口
+}
+function dVent(x,y){ // 通风口
+  pxRect(x,y,20,14,'#1a1a1a'); drawBorder(x,y,20,14,'#333',1);
+  for(var i=0;i<4;i++) pxRect(x+3,y+2+i*3,14,1,'#333');
+}
+function dMedkit(x,y){ // 医药箱
+  pxRect(x,y,16,12,'#3a1010'); drawBorder(x,y,16,12,'#521414',1);
+  pxRect(x+7,y+2,2,8,'#fff'); pxRect(x+4,y+5,8,2,'#fff');
+}
+function dBrokenLight(x,y){ // 断电的吊灯
+  pxRect(x+7,y,2,8,'#222'); pxRect(x,y+8,16,5,'#2a2a2a');
+  pxRect(x+3,y+13,10,3,'#1a1a1a');
+  pxRect(x+5,y+15,6,1,'#000');
+}
+function dStain(x,y){ // 血迹/污渍
+  pxRect(x,y,14,8,P.BLOOD); pxRect(x+3,y+8,8,4,P.BLOOD2); pxRect(x+8,y-2,5,4,P.BLOOD);
+}
+function dReport(x,y){ // 散落报告
+  pxRect(x,y,16,20,'#cfc8b0'); drawBorder(x,y,16,20,'#8a8268',1);
+  for(var i=0;i<4;i++) pxRect(x+3,y+4+i*4,10,1,'#555');
+  pxRect(x+2,y+2,12,16,'rgba(120,20,20,0.25)'); // 血迹
+}
+function dMirror(x,y){ // 布满灰尘的镜子
+  pxRect(x,y,40,58,'#2a2a30'); drawBorder(x,y,40,58,'#444',2);
+  pxRect(x+4,y+4,32,50,'#1c242c');
+  for(var i=0;i<6;i++) pxRect(x+4+i*5,y+4,2,50,'rgba(200,200,210,0.06)'); // 灰尘
+  pxRect(x+10,y+12,8,16,'rgba(120,120,130,0.25)'); // 模糊人影
+}
+function dMachine(x,y){ // 核心仪器 NM-2005（舱体式实验器械）
+  var w=90, h=118;
+  // ── 底座支架 ──
+  pxRect(x+16, y+h, 58, 10, '#111'); drawBorder(x+16, y+h, 58, 10, '#0a0a0a', 1);
+  pxRect(x+24, y+h+8, 42, 4, '#1a1a1a');
+  pxRect(x+20, y+h+8, 6, 3, '#333');
+  pxRect(x+64, y+h+8, 6, 3, '#333');
+
+  // ── 舱体外壳（梯形分段拼胶囊轮廓）──
+  // 上半圆头（梯形模拟）
+  ctx.fillStyle=P.MACHINE;
+  ctx.beginPath(); ctx.moveTo(x+12,y); ctx.lineTo(x+w-12,y);
+  ctx.lineTo(x+w, y+28); ctx.lineTo(x, y+28); ctx.fill();
+  drawBorder(x, y, w, 28, '#18181c', 1);
+  // 中间直筒主体
+  pxRect(x, y+26, w, 66, P.MACHINE);
+  drawBorder(x, y+26, w, 66, '#222', 1);
+  // 下半圆头
+  ctx.fillStyle=P.MACHINE;
+  ctx.beginPath(); ctx.moveTo(x,    y+92); ctx.lineTo(x+w,   y+92);
+  ctx.lineTo(x+w-12, y+h); ctx.lineTo(x+12, y+h); ctx.fill();
+  drawBorder(x, y+92, w, h-92, '#18181c', 1);
+
+  // 结构线 / 高光
+  pxRect(x+6, y+26, 2, 66, 'rgba(0,0,0,0.40)');
+  pxRect(x+w-8, y+26, 2, 66, 'rgba(0,0,0,0.40)');
+  pxRect(x+9, y+26, 5, 66, 'rgba(255,255,255,0.04)');
+  pxRect(x+4, y+4, 4, 20, 'rgba(255,255,255,0.06)');
+  // 上下环箍
+  pxRect(x, y+24, w, 4, '#2a2a32');
+  pxRect(x, y+90, w, 4, '#2a2a32');
+
+  // ── 玻璃观察窗（偏上，46×38）──
+  var gx=x+22, gy=y+34, gw=46, gh=38;
+  pxRect(gx, gy, gw, gh, 'rgba(110,170,185,0.15)');
+  drawBorder(gx, gy, gw, gh, 'rgba(180,225,235,0.75)', 1);
+  pxRect(gx+4, gy+4, 4, gh-8, 'rgba(220,245,255,0.30)');
+  pxRect(gx+gw-7, gy+5, 3, gh-10, 'rgba(220,245,255,0.12)');
+
+  // ── 窗内隐约人脸（关停后消失）──
+  if(!machineOff){
+    var fa=Math.sin(Date.now()*0.0022)*0.14+0.34;
+    ctx.globalAlpha=fa;
+    pxRect(gx+17, gy+8, 13, 16, '#0a0a0a');
+    pxRect(gx+19, gy+12, 3, 3, '#c23434');
+    pxRect(gx+25, gy+12, 3, 3, '#c23434');
+    pxRect(gx+20, gy+17, 9, 2, '#c23434');
+    pxRect(gx+14, gy+23, 19, 8, '#0a0a0a');
+    ctx.globalAlpha=1;
+  }else{
+    pxText('OFFLINE', gx+gw/2, gy+gh/2, 'rgba(80,160,90,0.5)', 7, 'center');
+  }
+
+  // ── 控制面板区 ──
+  var py=y+80;
+  pxRect(x+14, py, w-28, 16, P.MACHINE2);
+  drawBorder(x+14, py, w-28, 16, '#16161a', 1);
+  for(var i=0;i<4;i++) pxRect(x+18+i*15, py+4, 10, 4, '#2a2a30');
+  if(!machineOff){
+    var r=Math.sin(Date.now()*0.006)*0.4+0.5;
+    pxRect(x+38, py+2, 12, 7, 'rgb('+Math.floor(120+120*r)+',0,0)');
+    pxRect(x+36, py, 16, 11, 'rgba(220,0,0,'+r+')');
+  }else{
+    pxRect(x+36, py, 16, 11, '#1a1a1a'); pxRect(x+38, py+2, 12, 7, '#3a0a0a'); // 红灯熄灭
+  }
+
+  // 侧阀/管道
+  pxRect(x-4,  y+50, 6, 18, '#2a2a30'); pxRect(x-2,  y+54, 3, 10, '#444');
+  pxRect(x+w-2,y+50, 6, 18, '#2a2a30'); pxRect(x+w, y+54, 3, 10, '#444');
+
+  pxText('NM-2005', x+w/2, y+h-8, '#7a7a82', 8, 'center');
+}
+function dDoor(x,y){ // 左上角小门（微开）
+  pxRect(x,y,34,46,'#1c1812'); drawBorder(x,y,34,46,'#3a2e1e',2); // 门框
+  pxRect(x+3,y+3,28,40,'#2a2218'); drawBorder(x+3,y+3,28,40,'#0a0805',1); // 门板
+  pxRect(x+5,y+5,24,16,'#34291c'); // 门板高光
+  pxRect(x+24,y+24,3,4,'#8a7a4a'); // 门锁
+  pxText('小门',x+17,y-2,'#6a5a3a',8,'center');
+}
+function dSealedEntrance(x,y,w){ // 门字形入口（封条）
+  pxRect(x,y-2,w,4,'#2a2a20'); pxRect(x,y+18,w,4,'#2a2a20');
+  for(var i=0;i<6;i++) pxRect(x+(i%2?4:0),y+2+(i>1?8:0),w-(i%2?8:0),5,'rgba(190,40,40,'+(0.5+(i%2?0.2:0))+')'); // 封条
+  pxText('↓',x+w/2,y+6,'#caa',10,'center');
+}
+
+// ── 渲染 ──
+function render(){
+  ctx.clearRect(0,0,W,H);
+  var sx=screenShake>0?(Math.random()-0.5)*screenShake:0;
+  var sy=screenShake>0?(Math.random()-0.5)*screenShake:0;
+
+  // ── 世界层（相机跟随：以玩家为中心）──
+  ctx.save();
+  ctx.translate(sx,sy);
+  ctx.translate(W/2, H/2);
+  ctx.scale(CAM_ZOOM, CAM_ZOOM);
+  ctx.translate(-camera.x, -camera.y);
+
+  // 地面
+  pxRect(B.L,B.T,CW,CH,P.FLOOR);
+  // ── 地砖纹理（大块地砖 + 横竖缝线 + 污渍噪点）──
+  var TILE_W = 40, TILE_H = 40;
+  // 交替色调的地砖底色
+  for(var tx=B.L; tx<B.R; tx+=TILE_W){
+    for(var ty=B.T; ty<B.B; ty+=TILE_H){
+      var isDark = ((tx/TILE_W)+(ty/TILE_H))%2===1;
+      var c = isDark ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.03)';
+      pxRect(tx, ty, TILE_W, TILE_H, c);
+    }
+  }
+  // 纵向砖缝
+  ctx.globalAlpha = 0.18;
+  for(var gx=B.L; gx<B.R; gx+=TILE_W) pxRect(gx, B.T, 1, CH, '#000');
+  // 横向砖缝
+  for(var gy=B.T; gy<B.B; gy+=TILE_H) pxRect(B.L, gy, CW, 1, '#000');
+  ctx.globalAlpha = 1;
+  // 随机磨损斑点（位置首次渲染时固定，避免每帧闪烁）
+  if(!window._floorSpeckles6){
+    window._floorSpeckles6 = [];
+    var seed = 42;
+    function rnd6(){ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }
+    for(var si=0; si<300; si++){
+      window._floorSpeckles6.push({
+        x: B.L + rnd6()*CW,
+        y: B.T + rnd6()*CH,
+        s: 1+Math.floor(rnd6()*3),
+        a: 0.04 + rnd6()*0.12
+      });
+    }
+  }
+  for(var si=0; si<window._floorSpeckles6.length; si++){
+    var sp = window._floorSpeckles6[si];
+    pxRect(sp.x, sp.y, sp.s, sp.s, 'rgba(0,0,0,'+sp.a+')');
+  }
+
+  // 中央实验仪器（不再围墙，直接置于地面；本体由 walls 处理碰撞）
+  dMachine(machine.x, machine.y);
+  dCaution(machine.x-34, machine.y+machine.h+6, machine.w+68);
+  dBrokenJar(machine.x-22, machine.y-6);
+  dBrokenJar(machine.x+machine.w-4, machine.y-6);
+  dStain(machine.x-30, machine.y+machine.h-8);
+  dStain(machine.x+machine.w+8, machine.y+machine.h-22);
+
+  // 走廊区域标签
+  pxText('门  字  形  走  廊', B.L+10, B.T+8, '#3a352a', 11, 'left');
+  pxText('（实验区·已封锁）', B.L+10, B.T+22, '#2a2620', 9, 'left');
+  // 左上角小门
+  dDoor(B.L+12, B.T+44);
+
+  // 装饰：左走廊
+  dToppledDesk(96, 250);
+  dBlackboard(86, 330);
+  dStain(140, 440);
+  dBrokenLight(150, 56);
+  dVent(110, 400);
+  // 装饰：右走廊
+  dMirror(790, 150);
+  dReport(786, 300);
+  dUniform(842, 210);
+  dMedkit(800, 430);
+  dBrokenLight(820, 56);
+  dVent(800, 120);
+  // 装饰：顶走廊
+  dLabBench(150, 70);
+  dBrokenJar(640, 72);
+  dProjector(320, 55);
+  dStain(520, 95);
+  dCaution(B.L+10, B.T+30, 160);
+  // 装饰：底走廊
+  dReport(180, 470);
+  dReport(700, 470);
+  dStain(360, 480);
+  dCaution(B.L+10, B.B-18, 160);
+  dCaution(B.R-170, B.B-18, 160);
+
+  // 墙体覆盖（跳过机器本体，机器由 dMachine 自行绘制）
+  for(var wi=0;wi<walls.length;wi++){
+    var ww=walls[wi];
+    if(ww.x===machine.x && ww.y===machine.y && ww.w===machine.w && ww.h===machine.h) continue;
+    pxRect(ww.x,ww.y,ww.w,ww.h,P.WALL3);
+  }
+  drawBorder(B.L,B.T,CW,CH,P.WALL3,4);
+
+  // 入口封条门
+  dSealedEntrance(gapX1, B.B-22, gapX2-gapX1);
+
+  // 地面障碍物（外形各不相同）
+  for(var oi2=0;oi2<obstacles.length;oi2++){
+    var ob=obstacles[oi2];
+    if(ob.kind==='cabinet') dFurnitureCabinet(ob.x,ob.y,oi2);
+    else if(ob.kind==='desk') dToppledDesk(ob.x,ob.y);
+    else if(ob.kind==='crate') dCrate(ob.x,ob.y,ob.w,ob.h);
+    else if(ob.kind==='freezer') dFreezer(ob.x,ob.y);
+    else if(ob.kind==='barrel') dBarrel(ob.x,ob.y);
+    else if(ob.kind==='shelf') dShelf(ob.x,ob.y);
+    else if(ob.kind==='chair') dBrokenChair(ob.x,ob.y);
+  }
+
+  // 交互高亮
+  for(var z=0; z<interactZones.length; z++){
+    var zo=interactZones[z];
+    if(interactionHint===zo){
+      var t=Math.sin(Date.now()*0.005)*0.3+0.5;
+      drawBorder(zo.x-2,zo.y-2,zo.w+4,zo.h+4,'rgba(255,255,255,'+t+')',1);
+    }
+  }
+
+  // 玩家 & 黑影 & 陈宇（陈宇绘制在玩家之上，确保不被主角遮挡）
+  drawPlayer(player.x,player.y);
+  drawChaser();
+  drawChenYu(chenYu.x, chenYu.y);
+
+  // 交互提示
+  if(interactionHint && !dialog && !pwDialog){
+    var hl=interactionHint.label||'';
+    var hy=player.y-14, tw=hl.length*7;
+    pxRect(player.x+player.w/2-tw/2-4,hy-2,tw+8,12,'rgba(0,0,0,0.8)');
+    pxText('[F] '+hl,player.x+player.w/2,hy,'#fff',8,'center');
+  }
+
+  ctx.restore();
+
+  // ── 屏幕层（不跟随相机）──
+  // HUD
+  pxRect(0,H-22,W,22,'rgba(0,0,0,0.7)');
+  pxText('WASD 移动   F 互动   ESC 关闭',10,H-16,P.HUD,9);
+  if(cabinetUnlocked) pxText('安全柜:解锁',W-120,H-16,P.GREEN,8,'right');
+  else pxText('安全柜:锁定',W-120,H-16,P.RED,8,'right');
+  pxText('实验区',W-30,H-16,P.HINT,8,'right');
+
+  if(tipText){
+    var tw2=tipText.length*7;
+    pxRect(W/2-tw2/2-6,4,tw2+12,16,'rgba(0,0,0,0.85)');
+    pxText(tipText,W/2,7,'#aaa',9,'center');
+  }
+  drawTimeHUD();
+
+  if(dialog){
+    pxRect(0,0,W,H,'rgba(0,0,0,0.7)');
+    var dw=500,dh=300, dx=(W-dw)/2, dy=(H-dh)/2;
+    pxRect(dx,dy,dw,dh,P.DIALOG_BG); drawBorder(dx,dy,dw,dh,P.DIALOG_BORDER,3);
+    pxRect(dx,dy,dw,22,'#1a1a1a'); drawBorder(dx,dy,dw,22,P.DIALOG_BORDER,1);
+    pxText(dialog.title,dx+dw/2,dy+5,P.DIALOG_TITLE,11,'center');
+    var lines=dialog.text.split('\n');
+    for(var li=0;li<lines.length;li++) pxText(lines[li],dx+16,dy+34+li*16,P.DIALOG_TEXT,11);
+    pxText('[F] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+  }
+
+  if(pwDialog){
+    pxRect(0,0,W,H,'rgba(0,0,0,0.75)');
+    var pw=280,ph=140, pdx=(W-pw)/2, pdy=(H-ph)/2;
+    pxRect(pdx,pdy,pw,ph,P.DIALOG_BG); drawBorder(pdx,pdy,pw,ph,P.DIALOG_BORDER,3);
+    pxRect(pdx,pdy,pw,22,'#1a1a1a'); drawBorder(pdx,pdy,pw,22,P.DIALOG_BORDER,1);
+    pxText('密码验证',pdx+pw/2,pdy+5,P.DIALOG_TITLE,11,'center');
+    var tl=pwDialog.targetId==='cabinet_lab'?'安全柜密码(4位·关停年份):':'密码:';
+    pxText(tl,pdx+20,pdy+40,P.DIALOG_TEXT,11);
+    pxRect(pdx+20,pdy+58,180,22,'#0a0a0a'); drawBorder(pdx+20,pdy+58,180,22,'#555',1);
+    pxText(new Array(pwDialog.input.length+1).join('*'),pdx+24,pdy+62,'#8a8a8a',13);
+    if(Math.floor(Date.now()/500)%2) pxRect(pdx+24+pwDialog.input.length*8,pdy+60,6,18,'#fff');
+    if(pwDialog.error) pxText(pwDialog.error,pdx+20,pdy+90,P.RED,10);
+    pxText('[F] 确认  [Esc] 取消',pdx+pw/2,pdy+ph-26,P.HUD,9,'center');
+  }
+
+  if(machineScreen){
+    pxRect(0,0,W,H,'rgba(0,0,0,0.82)');
+    var sw=540, sh=320, sx=(W-sw)/2, sy=(H-sh)/2;
+    // 显示器外壳
+    pxRect(sx-12,sy-12,sw+24,sh+24,'#161616'); drawBorder(sx-12,sy-12,sw+24,sh+24,'#3a3a3a',2);
+    // 屏幕
+    pxRect(sx,sy,sw,sh,'#04140a'); drawBorder(sx,sy,sw,sh,'#0a3a18',1);
+    pxText('NM-2005 实验舱 · 控制系统',sx+sw/2,sy+18,'#3cff7a',12,'center');
+    pxText('════════════════════════════',sx+sw/2,sy+28,'#0a6a2a',9,'center');
+    // 状态
+    pxText('■ 运行中：'+(machineOff?'否（已关停）':'是'), sx+24, sy+54, machineOff?'#3cff7a':'#ff5a5a',11,'left');
+    pxText('■ 受试者状态：未知', sx+24, sy+72, '#3cff7a',11,'left');
+    // 描述
+    pxText('【设备描述】', sx+24, sy+116, '#3cff7a',11,'left');
+    pxText('NM-2005 为一台自运行实验舱。封条已贴，但电力', sx+24, sy+134, '#2ecf66',10,'left');
+    pxText('未断，仍在持续运行，红灯有规律地闪烁。', sx+24, sy+148, '#2ecf66',10,'left');
+    // 关停区
+    if(machineOff){
+      pxText('【关停操作】设备已停机，无需进一步操作。', sx+24, sy+180, '#3cff7a',11,'left');
+    }else{
+      pxText('【关停操作】输入机器编码以停机：', sx+24, sy+180, '#ffd24a',11,'left');
+      pxRect(sx+24, sy+190, 320, 24, '#020a04'); drawBorder(sx+24, sy+190, 320, 24, '#0a3a18',1);
+      pxText(machineScreen.input, sx+30, sy+196, '#3cff7a',13,'left');
+      if(Math.floor(Date.now()/500)%2) pxRect(sx+30+machineScreen.input.length*8, sy+192, 6, 18, '#3cff7a');
+      // MD5 32 位 HEX 加密提示
+      pxText('（此密码经过MD5 32位HEX加密）', sx+24, sy+222, '#6aaa8a',10,'left');
+      if(machineScreen.error) pxText(machineScreen.error, sx+24, sy+240, '#ff5a5a',10,'left');
+    }
+    // 底部按钮（鼠标点击）：未关停 = 【确认关停】；已关停 = 【关闭界面】
+    var bw2=140, bh2=28, bx2=sx+sw-bw2-24, by2=sy+sh-50;
+    pxRect(bx2,by2,bw2,bh2,'#0a2a14');
+    drawBorder(bx2,by2,bw2,bh2,'#3cff7a',2);
+    pxText(machineOff?'【 关 闭 界 面 】':'【 确 认 关 停 】', bx2+bw2/2, by2+9, '#3cff7a', 11, 'center');
+    machineScreen.btnRect={x:bx2,y:by2,w:bw2,h:bh2};
+
+    // ★ 调试专用：免密关停按钮（仅未关停时显示，调试用，不影响剧情）
+    if(!machineOff){
+      var dbw=140, dbh=22, dbx=sx+24, dby=by2+3;
+      pxRect(dbx,dby,dbw,dbh,'#2a0a14');
+      drawBorder(dbx,dby,dbw,dbh,'#ff5a5a',1);
+      pxText('【调试·免密关停】', dbx+dbw/2, dby+6, '#ff8888', 10, 'center');
+      machineScreen.debugBtnRect={x:dbx,y:dby,w:dbw,h:dbh};
+    } else {
+      machineScreen.debugBtnRect=null;
+    }
+    pxText('[Esc] 退出', sx+24, sy+sh-14, '#2a8a4a',10,'left');
+  }
+
+  if(redFlashOn){
+    var rf=Math.sin(Date.now()*0.006)*0.12+0.2;
+    pxRect(0,0,W,H,'rgba(150,0,0,'+rf+')');
+  }
+  drawChaserDeath();
+}
+
+// ── 密码输入 ──
+window.addEventListener('keydown',function(e){
+  if((!pwDialog && !machineScreen) || dialog) return;
+  if(pwDialog && pwDialog.justOpened){ pwDialog.justOpened=false; return; }
+  if(machineScreen && machineScreen.justOpened){ machineScreen.justOpened=false; return; }
+  // Ctrl+V / Cmd+V 粘贴支持：把剪贴板里的 32 位 HEX 串贴到机器密码框
+  if((e.ctrlKey||e.metaKey) && (e.key==='v'||e.key==='V')){
+    if(machineScreen){
+      e.preventDefault();
+      var t=(e.clipboardData && e.clipboardData.getData('text')) || '';
+      // 只保留十六进制字符，并截断到 32 位（与机器密码等长）
+      var hex=(t.match(/[0-9a-fA-F]/g)||[]).join('').slice(0,32);
+      if(hex){
+        machineScreen.input=hex;
+        machineScreen.error='';
+        BGM.tryPlaySwitchSound();
+      }
+      return;
+    }
+  }
+  if(e.key.length===1 && /^[a-zA-Z0-9]$/.test(e.key)){
+    if(pwDialog){ pwDialog.input+=e.key; pwDialog.error=''; }
+    else if(machineScreen){ machineScreen.input+=e.key; machineScreen.error=''; }
+    e.preventDefault();
+  }
+  else if(e.key==='Backspace'){
+    if(pwDialog){ pwDialog.input=pwDialog.input.slice(0,-1); pwDialog.error=''; }
+    else if(machineScreen){ machineScreen.input=machineScreen.input.slice(0,-1); machineScreen.error=''; }
+    e.preventDefault();
+  }
+});
+
+// Ctrl+V 兜底：浏览器在某些情况下不会触发上面的 keydown（剪贴板 API 限制），
+// 提供一个不可见的"粘贴按钮"让玩家也能粘贴（通过 prompt 输入粘贴内容）
+window.addEventListener('paste',function(e){
+  if(!machineScreen || dialog) return;
+  var t=(e.clipboardData && e.clipboardData.getData('text')) || '';
+  var hex=(t.match(/[0-9a-fA-F]/g)||[]).join('').slice(0,32);
+  if(hex){
+    machineScreen.input=hex;
+    machineScreen.error='';
+    BGM.tryPlaySwitchSound();
+    e.preventDefault();
+  }
+});
+
+// ── 主循环 ──
+function gameLoop(){ update(); render(); requestAnimationFrame(gameLoop); }
+
+// ── 脚步声系统 ──
+var Footsteps={
+  audioCtx:null, isPlaying:false, lastStepTime:0, stepInterval:250,
+  init:function(){
+    try{ this.audioCtx=new(window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+  },
+  playStep:function(){
+    if(!this.audioCtx) this.init(); if(!this.audioCtx) return;
+    var now=Date.now(); if(now-this.lastStepTime<this.stepInterval) return; this.lastStepTime=now;
+    try{
+      var ctx=this.audioCtx, dur=0.15;
+      var buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate), data=buf.getChannelData(0);
+      for(var i=0;i<data.length;i++){
+        var t=i/ctx.sampleRate, s=0;
+        if(t<0.01) s=(t/0.01)*Math.random()*0.4;
+        else if(t<0.05){ s=Math.random()*0.5+0.3; s+=Math.sin(t*400)*0.1; s+=Math.sin(t*1000)*0.03; }
+        else if(t<0.1){ var d=(t-0.05)/0.05; s=(1-d)*(Math.random()*0.3+0.15); s+=Math.sin(t*200)*0.04*(1-d); }
+        else if(t<dur){ var f=(t-0.1)/(dur-0.1); s=(1-f)*Math.random()*0.08; }
+        data[i]=s*0.5;
+      }
+      var src=ctx.createBufferSource(); src.buffer=buf;
+      var g=ctx.createGain(); g.gain.setValueAtTime(0.4,ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);
+      src.connect(g); g.connect(ctx.destination); src.start(0);
+    }catch(e){}
+  },
+  start:function(){ if(!this.isPlaying){ this.isPlaying=true; if(!this.audioCtx&&typeof AudioContext!=='undefined') this.init(); } },
+  stop:function(){ this.isPlaying=false; this.lastStepTime=0; },
+  update:function(isMoving,walkTimer){ if(isMoving){ this.start(); if(walkTimer===0||walkTimer%12===0) this.playStep(); } else this.stop(); }
+};
+document.addEventListener('DOMContentLoaded',function(){
+  document.addEventListener('keydown',function(){ if(!Footsteps.audioCtx) Footsteps.init(); });
+});
+
+tip('门字形实验走廊：调查四周物证，底部封条门通往地下配电室');
+gameLoop();
+})();
+</script>
+<script src="time.js"></script>
+<script src="bgm.js"></script>
+<script>
+// map6：bgm.js 加载后会覆盖 BGM 并启动合成器，这里立即禁止合成器并确保 caidan.mp3 播放
+(function(){
+  // 禁用 bgm.js 的合成器 BGM — start/stop 改为操作 <audio> 元素
+  if(window.BGM){
+    window.BGM.start = function(){
+      var bgm = document.getElementById('map6-bgm');
+      if(bgm && bgm.paused){ bgm.play().catch(function(){}); }
+    };
+    window.BGM.stop = function(){
+      var bgm = document.getElementById('map6-bgm');
+      if(bgm){ bgm.pause(); }
+    };
+    window.BGM.toggle = function(){
+      var bgm = document.getElementById('map6-bgm');
+      if(!bgm) return false;
+      if(bgm.paused){ bgm.play().catch(function(){}); }
+      else { bgm.pause(); }
+      return !bgm.paused;
+    };
+    window.BGM.setVolume = function(v){
+      var bgm = document.getElementById('map6-bgm');
+      if(bgm){ bgm.volume = Math.max(0, Math.min(1, v)); }
+    };
+  }
+  // 立刻播放 caidan.mp3
+  var bgm = document.getElementById('map6-bgm');
+  if(bgm){
+    bgm.volume = 0.6;
+    bgm.play().catch(function(){
+      // 静音策略被拦截 → 等首次交互
+      var once = function(){
+        bgm.play().catch(function(){});
+        document.removeEventListener('keydown', once);
+        document.removeEventListener('click', once);
+      };
+      document.addEventListener('keydown', once);
+      document.addEventListener('click', once);
+    });
+  }
+})();
+</script>
+<script src="save.js"></script>
+</body>
+</html>
