@@ -86,6 +86,8 @@
   }
 
   // 在当前游戏会话的存档槽中存档（覆盖，而非新建）
+  // 同一新游戏下任何存档方式（手动 / 自动 / 检查点）都不新增槽，
+  // 仅 createSlot（点「新游戏」）才新建。活跃槽失效时回退到最新已有槽。
   function saveCurrent() {
     var id = getActiveId();
     var saves = getSaves();
@@ -99,12 +101,77 @@
         }
       }
     }
-    // 无有效关联槽（如直接进地图、或关联槽被删）→ 新建一个槽兜底
-    var slot = { id: Date.now(), time: Date.now(), state: collectState() };
-    saves.push(slot);
-    saves = enforceMax(saves);
-    setSaves(saves);
-    setActiveId(slot.id);
+    // 活跃槽无效：不新建槽，改为覆盖最新的已有槽
+    if (saves.length > 0) {
+      var newest = saves[0];
+      for (var j = 1; j < saves.length; j++) {
+        if (saves[j].time > newest.time) newest = saves[j];
+      }
+      newest.time = Date.now();
+      newest.state = collectState();
+      setActiveId(newest.id);
+      setSaves(saves);
+    }
+    // 无任何存档槽时静默跳过（不新建）
+  }
+
+  // ── 检查点存档（追逐战前自动存档，死亡后可回到此点）──
+  // 与 saveCurrent 一样覆盖当前槽，但额外标记 isCheckpoint=true
+  // 并快照 checkpointState：后续手动存档（saveCurrent）只更新 state，
+  // 不会覆盖 checkpointState，确保 loadCheckpoint 总能回到检查点时的状态
+  function saveCheckpoint() {
+    saveCurrent();
+    var id = getActiveId();
+    if (id == null) return;
+    var saves = getSaves();
+    for (var i = 0; i < saves.length; i++) {
+      if (saves[i].id === id) {
+        saves[i].isCheckpoint = true;
+        saves[i].checkpointState = saves[i].state;   // 快照检查点状态
+        setSaves(saves);
+        return;
+      }
+    }
+  }
+
+  // 是否有可用的检查点存档（决定死亡画面是否显示「回档」按钮）
+  // 先查当前活跃槽，找不到则搜索所有槽（防止活跃槽 ID 失效）
+  function hasCheckpoint() {
+    var id = getActiveId();
+    if (id != null) {
+      var slot = findSlot(id);
+      if (slot && (slot.isCheckpoint || slot.checkpointState)) return true;
+    }
+    var saves = getSaves();
+    for (var i = 0; i < saves.length; i++) {
+      if (saves[i].isCheckpoint || saves[i].checkpointState) return true;
+    }
+    return false;
+  }
+
+  // 加载检查点（死亡画面点击「回档」按钮时调用）
+  // 优先读取 checkpointState 快照（不受后续手动存档影响）
+  // 先查当前活跃槽，找不到则搜索所有槽
+  function loadCheckpoint() {
+    var id = getActiveId();
+    if (id != null) {
+      var slot = findSlot(id);
+      if (slot && (slot.isCheckpoint || slot.checkpointState)) {
+        var st = slot.checkpointState || slot.state;
+        loadSlot(id, st);
+        return true;
+      }
+    }
+    // 活跃槽无检查点 → 搜索所有槽
+    var saves = getSaves();
+    for (var i = saves.length - 1; i >= 0; i--) {
+      if (saves[i].isCheckpoint || saves[i].checkpointState) {
+        var st = saves[i].checkpointState || saves[i].state;
+        loadSlot(saves[i].id, st);
+        return true;
+      }
+    }
+    return false;
   }
 
   function findSlot(id) {
@@ -132,8 +199,9 @@
     return false;
   }
 
-  // 记录已通往的结局，并删除“进入结局的存档”
-  function recordEnding(endingName) {
+  // 记录已通往的结局，并删除"进入结局的存档"
+  // keepSlot=true 时保留存档（死亡结局可回档重试，不删除存档槽）
+  function recordEnding(endingName, keepSlot) {
     var id = getActiveId();
     if (id == null) return;
     var saves = getSaves();
@@ -146,14 +214,14 @@
     var ach = getAchievements();
     ach.push({ ending: endingName, name: name, time: Date.now() });
     setAchievements(ach);
-    removeSlot(id);   // 删除进入结局的存档
+    if (!keepSlot) removeSlot(id);   // 删除进入结局的存档
   }
 
-  function loadSlot(id) {
+  function loadSlot(id, customState) {
     var slot = findSlot(id);
     if (!slot) return;
     setActiveId(id);   // 读取后，该游戏会话后续存档覆盖同一个槽
-    var st = slot.state || {};
+    var st = customState || slot.state || {};
     try {
       if (st.indexState != null) localStorage.setItem('xyzh_index_state', st.indexState);
       else localStorage.removeItem('xyzh_index_state');
@@ -165,7 +233,7 @@
     // 位置由 xyzh_resume 精确恢复，避免与地图自身 mapReturn 逻辑冲突
     try { sessionStorage.removeItem('mapReturn'); } catch (e) {}
     var map = st.map || 'map.html';
-    if (st.player && (map === 'map.html' || map === 'map2.html' || map === 'map3.html')) {
+    if (st.player) {
       try {
         sessionStorage.setItem('xyzh_resume', JSON.stringify({ map: map, x: st.player.x, y: st.player.y }));
       } catch (e) {}
@@ -204,7 +272,7 @@
       '.xyzh-ask-btn.danger:hover{color:#f88;border-color:#a55;}',
       '#xyzh-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:200;background:rgba(8,8,8,0.92);border:1px solid #6a5a3a;color:#d8c89a;font-family:"宋体",SimSun,serif;font-size:18px;letter-spacing:3px;padding:18px 34px;opacity:0;pointer-events:none;box-shadow:0 0 24px rgba(138,122,90,0.2);}',
       '#xyzh-popup.show{animation:xyzh-toast-in .42s cubic-bezier(.2,.9,.3,1.2) forwards;}',
-      '#xyzh-list-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:300;background:rgba(0,0,0,0.8);display:none;align-items:center;justify-content:center;font-family:"宋体",SimSun,serif;opacity:0;transition:opacity .25s ease;}',
+      '#xyzh-list-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:100000;background:rgba(0,0,0,0.8);display:none;align-items:center;justify-content:center;font-family:"宋体",SimSun,serif;opacity:0;transition:opacity .25s ease;}',
       '#xyzh-list-overlay.show{display:flex;opacity:1;}',
       '#xyzh-list-box{width:420px;max-width:90vw;max-height:80vh;overflow:auto;background:#0c0c0c;border:1px solid #444;padding:26px 28px;box-shadow:0 0 40px rgba(0,0,0,0.8);animation:xyzh-box-in .35s ease;}',
       '#xyzh-list-title{color:#8a7a5a;font-size:22px;letter-spacing:8px;text-align:center;margin-bottom:18px;text-shadow:0 0 8px rgba(138,122,90,0.3);}',
@@ -473,6 +541,9 @@
   window.SaveSystem = {
     createSlot: createSlot,   // 新游戏：新建一个存档槽（已满返回 -1）
     saveCurrent: saveCurrent,
+    saveCheckpoint: saveCheckpoint,
+    hasCheckpoint: hasCheckpoint,
+    loadCheckpoint: loadCheckpoint,
     openList: openList,
     load: loadSlot,
     remove: removeSlot,
@@ -483,6 +554,43 @@
     getSavesCount: function () { return getSaves().length; },
     MAX_SLOTS: MAX_SLOTS,
     toast: toast
+  };
+
+  // ── 死亡画面：「回档」按钮 ──
+  // 全局 HTML overlay，各地图 triggerChaserDeath / 按钮死亡调用 showDeathCheckpointBtn()
+  // 有检查点 → 点击直接读取检查点（一键回档）
+  // 无检查点但有存档 → 点击打开存档列表选择
+  // 无存档 → 不显示按钮，由各地图自行跳转 start.html
+  window.showDeathCheckpointBtn = function () {
+    if (typeof SaveSystem === 'undefined') return;
+    var hasCP = !!(SaveSystem.hasCheckpoint && SaveSystem.hasCheckpoint());
+    var hasSaves = !!(SaveSystem.getSaves && SaveSystem.getSaves().length > 0);
+    if (!hasCP && !hasSaves) return;
+
+    if (document.getElementById('__xyzh_death_btn')) return;
+    var btn = document.createElement('div');
+    btn.id = '__xyzh_death_btn';
+    btn.style.cssText = 'position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:99999;padding:12px 36px;background:rgba(15,15,15,0.88);border:1px solid #8a6a3a;color:#d8c89a;font-family:"宋体",SimSun,serif;font-size:16px;letter-spacing:6px;cursor:pointer;user-select:none;transition:color .2s ease,border-color .2s ease,background .2s ease;box-shadow:0 0 20px rgba(0,0,0,0.6);';
+    btn.textContent = '回 档';
+    btn.onmouseenter = function () { btn.style.borderColor = '#d8c89a'; btn.style.color = '#fff'; btn.style.background = 'rgba(40,30,15,0.92)'; };
+    btn.onmouseleave = function () { btn.style.borderColor = '#8a6a3a'; btn.style.color = '#d8c89a'; btn.style.background = 'rgba(15,15,15,0.88)'; };
+    btn.onclick = function () {
+      try {
+        // 先尝试直接读取检查点，成功则跳转
+        if (SaveSystem.loadCheckpoint && SaveSystem.loadCheckpoint()) {
+          return;
+        }
+        // 无检查点时打开存档列表
+        if (SaveSystem.openList) {
+          SaveSystem.openList();
+        }
+      } catch (e) {}
+    };
+    document.body.appendChild(btn);
+  };
+  window.hideDeathCheckpointBtn = function () {
+    var btn = document.getElementById('__xyzh_death_btn');
+    if (btn) btn.remove();
   };
 
   if (document.readyState === 'loading') {

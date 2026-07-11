@@ -746,6 +746,14 @@
             color: #666; letter-spacing: 3px; opacity: 0; transition: opacity 0.8s ease;
         }
         #black-screen .be-hint.show { opacity: 1; }
+        #black-screen .cont-prompt {
+            position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%);
+            font-family: "宋体", SimSun, serif; font-size: 15px; letter-spacing: 3px;
+            color: #c01414; cursor: pointer; display: none;
+            text-shadow: 0 0 10px #500;
+        }
+        #black-screen .cont-prompt.show { display: block; animation: cont-pulse 1.4s ease-in-out infinite; }
+        @keyframes cont-pulse { 0%,100%{ opacity:0.35; } 50%{ opacity:1; } }
         /* 打字机光标 */
     #black-screen .typing::after {
         content: '▌'; margin-left: 2px; color: #c01414;
@@ -1346,7 +1354,7 @@ function triggerBadEnding() {
         var b = document.getElementById('black-screen');
         if (b) b.classList.add('show');
         if (window.SaveSystem) SaveSystem.recordEnding('逃避结局');
-        // 黑屏打字机动画：标题 → 描述 → GAME OVER 依次逐字打出
+        // 黑屏打字机动画：标题 → 描述 → GAME OVER 依次逐字打出（每段都需点击「继续」）
         var bt = b ? b.querySelector('.be-title') : null;
         var bd = b ? b.querySelector('.be-desc') : null;
         var bo = b ? b.querySelector('.be-over') : null;
@@ -1354,28 +1362,51 @@ function triggerBadEnding() {
         var t1 = bt ? bt.getAttribute('data-text') : '';
         var t2 = bd ? bd.getAttribute('data-text') : '';
         var t3 = bo ? bo.getAttribute('data-text') : '';
-        typeWriter(bt, t1, function(){
-            typeWriter(bd, t2, function(){
-                typeWriter(bo, t3, function(){
-                    // 打字完成后显示提示，等待点击任意位置才返回标题（手动控制，不再自动跳转）
-                    if (bh) bh.classList.add('show');
-                    var jumped = false;
-                    function goHome() {
-                        if (jumped) return; jumped = true;
-                        try{
-                            if(__badEndingBgm && __badEndingBgm.source){
-                                __badEndingBgm.source.stop();
-                                __badEndingBgm.source.disconnect();
-                            }
-                            if(__badEndingBgm && __badEndingBgm.gain){
-                                __badEndingBgm.gain.disconnect();
-                            }
-                        }catch(e){}
-                        window.location.href = 'start.html';
-                    }
-                    if (b) b.style.cursor = 'pointer';
-                    if (b) b.addEventListener('click', goHome);
-                    document.addEventListener('click', goHome);
+        // 先把三段文本清空，避免黑屏一出来就直接显示文字
+        if (bt) bt.textContent = '';
+        if (bd) bd.textContent = '';
+        if (bo) bo.textContent = '';
+
+        // 显示「点击继续」并等待用户点击黑屏，再执行 cb
+        function showContinue(cb) {
+            var cp = b ? b.querySelector('.cont-prompt') : null;
+            if (cp) cp.classList.add('show');
+            var once = function () {
+                b.removeEventListener('click', once);
+                if (cp) cp.classList.remove('show');
+                cb();
+            };
+            b.addEventListener('click', once);
+        }
+
+        showContinue(function () {
+            typeWriter(bt, t1, function () {
+                showContinue(function () {
+                    typeWriter(bd, t2, function () {
+                        showContinue(function () {
+                            typeWriter(bo, t3, function () {
+                                // 打字完成后显示提示，等待点击任意位置才返回标题
+                                if (bh) bh.classList.add('show');
+                                var jumped = false;
+                                function goHome() {
+                                    if (jumped) return; jumped = true;
+                                    try{
+                                        if(__badEndingBgm && __badEndingBgm.source){
+                                            __badEndingBgm.source.stop();
+                                            __badEndingBgm.source.disconnect();
+                                        }
+                                        if(__badEndingBgm && __badEndingBgm.gain){
+                                            __badEndingBgm.gain.disconnect();
+                                        }
+                                    }catch(e){}
+                                    window.location.href = 'start.html';
+                                }
+                                if (b) b.style.cursor = 'pointer';
+                                if (b) b.addEventListener('click', goHome);
+                                document.addEventListener('click', goHome);
+                            });
+                        });
+                    });
                 });
             });
         });
@@ -1519,9 +1550,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function tryPlay(){
         if (abgm.paused) {
-            try { abgm.volume = 0.7; abgm.play().catch(function(){}); } catch(e){}
+            try { abgm.muted = false; abgm.volume = 0.7; var p = abgm.play(); if(p && p.catch) p.catch(function(){}); } catch(e){}
         }
     }
+    // muted 自动播放被浏览器放行后，播放一开始即取消静音（无需用户手势）
+    abgm.addEventListener('play', function(){ try { abgm.muted = false; } catch(e){} });
+    // 文件就绪后再尝试一次，避免首帧 play() 因未加载而静默失败
+    abgm.addEventListener('canplay', tryPlay);
+    abgm.addEventListener('loadeddata', tryPlay);
     tryPlay();
 
     // 首次用户交互时补播（浏览器自动播放策略兜底）
@@ -1617,9 +1653,10 @@ window.__xyzh_block_bgm_autostart = true;
         <div class="be-desc" data-text="你选择了逃避。当真相被掩盖，三楼的回响从未停止。&#10;星榆中学照常迎来2009年的新生，他们带着笑走进校门，&#10;却不知道自己正迈向与2008届完全相同的结局。&#10;有些门，你明明看见，却假装没看见。">你选择了逃避。当真相被掩盖，三楼的回响从未停止。<br>星榆中学照常迎来2009年的新生，他们带着笑走进校门，<br>却不知道自己正迈向与2008届完全相同的结局。<br>有些门，你明明看见，却假装没看见。</div>
         <div class="be-over" data-text="GAME OVER">GAME OVER</div>
         <div class="be-hint">—— 点击任意位置返回首页 ——</div>
+        <div class="cont-prompt">▶ 点击继续</div>
     </div>
 
-    <audio id="bad-ending-bgm" src="bad_ending_music.mp3" loop preload="auto" style="display:none"></audio>
+    <audio id="bad-ending-bgm" src="bad_ending_music.mp3" autoplay muted loop preload="auto" style="display:none"></audio>
 
 </body>
 </html>

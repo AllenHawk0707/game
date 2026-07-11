@@ -582,6 +582,14 @@
             color: #b89a52; letter-spacing: 3px; opacity: 0; transition: opacity 0.8s ease;
         }
         #black-screen .ge-hint.show { opacity: 1; }
+        #black-screen .cont-prompt {
+            position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%);
+            font-family: "宋体", SimSun, serif; font-size: 15px; letter-spacing: 3px;
+            color: #d4af37; cursor: pointer; display: none;
+            text-shadow: 0 0 10px rgba(212,175,55,0.6);
+        }
+        #black-screen .cont-prompt.show { display: block; animation: cont-pulse 1.4s ease-in-out infinite; }
+        @keyframes cont-pulse { 0%,100%{ opacity:0.35; } 50%{ opacity:1; } }
         #black-screen .ge-extra { opacity: 0; }
         #black-screen .ge-extra.flicker { animation: ge-flicker 2.6s ease forwards; }
         @keyframes ge-flicker {
@@ -652,8 +660,11 @@
     <div class="ge-desc" data-text="2008年，星榆中学三楼实验室在一次违规实验中发生意外，八名高三学生被实验仪器产生的精神场困住、渐渐失去自我，化作无脸的蓝白校服人影，每晚二十点半仍在三楼集体朗读；校方为掩盖真相，以「危房」为由封校，编造转学谣言，用红色药剂压制学生的幻觉、用镜子与监控封锁真相。而你这一次没有逃避——你直面了三楼的回响，毁掉了实验室的核心仪器，让被掩埋的真相重见天日。星榆中学的诅咒就此终结，2009年的新生不必再步2008届的后尘。">2008年，星榆中学三楼实验室在一次违规实验中发生意外，八名高三学生被实验仪器产生的精神场困住、渐渐失去自我，化作无脸的蓝白校服人影，每晚二十点半仍在三楼集体朗读；校方为掩盖真相，以「危房」为由封校，编造转学谣言，用红色药剂压制学生的幻觉、用镜子与监控封锁真相。而你这一次没有逃避——你直面了三楼的回响，毁掉了实验室的核心仪器，让被掩埋的真相重见天日。星榆中学的诅咒就此终结，2009年的新生不必再步2008届的后尘。</div>
     <div class="ge-over" data-text="故 事 完 结">故 事 完 结</div>
     <div class="ge-extra" style="margin-top: 22px; font-family: '宋体', SimSun, serif; font-size: 14px; letter-spacing: 2px; color: #ff3030; text-shadow: 0 0 8px rgba(255,0,0,0.5);">可是那些你无数次在电脑、档案里看到的名字....他们究竟去哪里了？</div>
-    <div class="ge-hint">—— 点击任意位置返回首页 ——</div>
+        <div class="ge-hint">—— 点击任意位置返回首页 ——</div>
+        <div class="cont-prompt">▶ 点击继续</div>
 </div>
+
+<audio id="ending-bgm" src="good_ending_music.mp3" autoplay muted loop preload="auto" style="display:none"></audio>
 
 <!-- 在 bgm.js 加载前先禁用恐怖 BGM 自动恢复，避免与好结局音乐冲突 -->
 <script>
@@ -666,104 +677,44 @@ window.__xyzh_block_bgm_autostart = true;
 </script>
 <script src="bgm.js"></script>
 
-<!-- ── 好结局背景音乐（自动播放） ── -->
-<!-- 不再用 <audio>，因为 Chrome 在 file:// 协议下会拒绝播放 MP3（错误码 4）。
-     改用 Web Audio API：fetch + decodeAudioData 拉数据并解码，直接由 AudioContext 输出。
-     这样 file:// / http:// 都能响。 -->
+<!-- ── 好结局背景音乐（使用 <audio> 元素，兼容 file://） ── -->
 
 <!-- ── 好结局：开场淡入 → 3秒后淡出 → 黑屏打字 → 淡出 ── -->
 <script>
-// 启动好结局背景音乐（Web Audio 版本，兼容 file://）
+// 启动好结局背景音乐（<audio> 直接播放，配合 autoplay + 就绪重试）
 (function(){
     var btn = document.getElementById('play-bgm-btn');
-    var URL_FILE = 'good_ending_music.mp3';
-    var ctx = null, source = null, gainNode = null, buffer = null;
-    var started = false, fadeInterval = null;
 
-    // 0. 清场：暂停页面里所有 <audio> 元素
-    function clearOthers(){
-        document.querySelectorAll('audio').forEach(function(a){
-            try { a.pause(); a.currentTime = 0; a.muted = true; } catch(e) {}
-        });
-    }
-    clearOthers();
-
-    // 1. 关闭恐怖 BGM
+    // 关闭恐怖 BGM 系统
     try { if(window.BGM && BGM.stop) BGM.stop(); } catch(e) {}
     try { if(window.BGM && BGM.stopChase) BGM.stopChase(); } catch(e) {}
     try { localStorage.setItem('bgm_playing', 'false'); } catch(e) {}
     try { sessionStorage.removeItem('chaseOn'); } catch(e) {}
 
-    function ensureCtx(){
-        if(!ctx){
-            try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ ctx = null; }
-        }
-        if(ctx && ctx.state === 'suspended'){
-            try { ctx.resume(); } catch(e){}
-        }
-        return ctx;
+    function getAudio(){
+        return document.getElementById('ending-bgm');
     }
 
-    function loadBuffer(){
-        if(buffer) return Promise.resolve(buffer);
-        console.log('[好结局BGM] fetch + decodeAudioData:', URL_FILE);
-        return fetch(URL_FILE)
-            .then(function(r){
-                if(!r.ok) throw new Error('HTTP ' + r.status);
-                return r.arrayBuffer();
-            })
-            .then(function(ab){
-                var c = ensureCtx();
-                if(!c) throw new Error('AudioContext 不可用');
-                return c.decodeAudioData(ab);
-            })
-            .then(function(buf){
-                buffer = buf;
-                console.log('[好结局BGM] 解码完成, duration=', buf.duration, '秒, channels=', buf.numberOfChannels);
-                return buf;
-            });
-    }
-
-    function startBgm(){
-        if(started) return;
-        var c = ensureCtx();
-        if(!c){
-            console.error('[好结局BGM] AudioContext 创建失败');
-            if(btn){ btn.innerHTML = '⚠ 浏览器不支持音频'; btn.style.color = '#ff8888'; }
-            return;
+    function tryPlay(){
+        var abgm = getAudio();
+        if(!abgm) return;
+        if(abgm.paused){
+            try { abgm.muted = false; abgm.volume = 0.6; var p = abgm.play(); if(p && p.catch) p.catch(function(){}); } catch(e){}
         }
-        started = true;
-        clearOthers();
-        loadBuffer().then(function(buf){
-            // 重新建一个 source（BufferSource 只能 start 一次）
-            source = c.createBufferSource();
-            source.buffer = buf;
-            source.loop = true;
-            gainNode = c.createGain();
-            gainNode.gain.value = 0;
-            source.connect(gainNode);
-            gainNode.connect(c.destination);
-            source.start(0);
-            // 淡入到 0.6
-            var t0 = c.currentTime;
-            gainNode.gain.linearRampToValueAtTime(0.6, t0 + 1.5);
-            if(btn) btn.style.display = 'none';
-            console.log('[好结局BGM] 播放成功, 音量淡入到 0.6');
-        }).catch(function(err){
-            console.error('[好结局BGM] 加载失败:', err && err.message);
-            if(btn){
-                btn.innerHTML = '⚠ 音乐加载失败（点这里重试）';
-                btn.style.color = '#ff8888';
-                btn.style.borderColor = '#ff4444';
-            }
-            started = false;       // 允许重试
-        });
     }
 
-    // 3. 首次交互兜底（自动播放策略下，无手势时 AudioContext.start 可能被拒）
+    // 文件就绪后再尝试一次，避免首帧 play() 因未加载而静默失败
+    var abgm = getAudio();
+    if(abgm){
+        // muted 自动播放被浏览器放行后，播放一开始即取消静音（无需用户手势）
+        abgm.addEventListener('play', function(){ try { abgm.muted = false; } catch(e){} });
+        abgm.addEventListener('canplay', tryPlay);
+        abgm.addEventListener('loadeddata', tryPlay);
+    }
+
+    // 首次用户交互补播（自动播放策略兜底）
     var onFirstInteract = function(){
-        if(started) return;
-        startBgm();
+        tryPlay();
         document.removeEventListener('click', onFirstInteract, true);
         document.removeEventListener('keydown', onFirstInteract, true);
         document.removeEventListener('touchstart', onFirstInteract, true);
@@ -772,25 +723,20 @@ window.__xyzh_block_bgm_autostart = true;
     document.addEventListener('keydown', onFirstInteract, true);
     document.addEventListener('touchstart', onFirstInteract, true);
 
-    // 4. 播放按钮（兜底 + 失败重试）
+    // 播放按钮（兜底 + 失败重试）
     if(btn){
         btn.addEventListener('click', function(e){
             e.stopPropagation();
-            startBgm();
+            tryPlay();
         });
     }
 
-    // 5. ★ 自动播放：页面加载即尝试。Web Audio 在 file:// 下也需要用户手势解锁，
-    //    因此会在 onFirstInteract / 按钮中兜底；如能成功则立即出声。
-    window.addEventListener('load', function(){
-        startBgm();
-    });
+    // 自动播放：页面加载即尝试
+    window.addEventListener('load', function(){ tryPlay(); });
 
     // 暴露给打字完成后的 goHome 用
     window.__endingBgmStop = function(){
-        try { if(source){ source.stop(); source.disconnect(); } } catch(e){}
-        try { if(gainNode) gainNode.disconnect(); } catch(e){}
-        source = null; gainNode = null;
+        try { var a = getAudio(); if(a){ a.pause(); a.currentTime = 0; } } catch(e){}
     };
 })();
 
@@ -867,35 +813,58 @@ setTimeout(function(){
     var b=document.getElementById('black-screen');
     if(b) b.classList.add('show');
     // 2.5 闪烁金光生成在标题"好 结 局"打字完成时（见 typeWriter 回调）
-    // 3. 依次逐字打字：标题 → 谜底揭示 → 完结
+    // 3. 依次逐字打字：标题 → 谜底揭示 → 完结（每段都需点击「继续」）
     var bt=b?b.querySelector('.ge-title'):null;
     var bd=b?b.querySelector('.ge-desc'):null;
     var bo=b?b.querySelector('.ge-over'):null;
+    var bh=b?b.querySelector('.ge-hint'):null;
+    var be=b?b.querySelector('.ge-extra'):null;
     var t1=bt?bt.getAttribute('data-text'):'';
     var t2=bd?bd.getAttribute('data-text'):'';
     var t3=bo?bo.getAttribute('data-text'):'';
-    typeWriter(bt,t1,function(){
-        // ★ 标题"好 结 局"打完字后生成金色闪烁光点
-        if (typeof spawnBubbles === 'function') spawnBubbles();
-        typeWriter(bd,t2,function(){
-            typeWriter(bo,t3, function(){
-                // 4. 打字完成后显示提示小字，并等待点击页面才返回标题
-                var bh=b?b.querySelector('.ge-hint'):null;
-                if(bh) bh.classList.add('show');
-                // 红字在所有字体出现之后才开始闪烁浮现
-                var be=b?b.querySelector('.ge-extra'):null;
-                if(be) setTimeout(function(){ be.classList.add('flicker'); }, 600);
-                var jumped=false;
-                function goHome(){
-                    if(jumped) return; jumped=true;
-                    try{
-                        if(window.__endingBgmStop) window.__endingBgmStop();
-                    }catch(e){}
-                    window.location.href='start.html';
-                }
-                if(b) b.style.cursor='pointer';
-                if(b) b.addEventListener('click', goHome);
-                document.addEventListener('click', goHome);
+    // 先把三段文本清空，避免黑屏一出来就直接显示文字
+    if(bt) bt.textContent='';
+    if(bd) bd.textContent='';
+    if(bo) bo.textContent='';
+
+    // 显示「点击继续」并等待用户点击黑屏，再执行 cb
+    function showContinue(cb){
+        var cp=b?b.querySelector('.cont-prompt'):null;
+        if(cp) cp.classList.add('show');
+        var once=function(){
+            b.removeEventListener('click', once);
+            if(cp) cp.classList.remove('show');
+            cb();
+        };
+        b.addEventListener('click', once);
+    }
+
+    showContinue(function(){
+        typeWriter(bt,t1,function(){
+            // ★ 标题"好 结 局"打完字后生成金色闪烁光点
+            if (typeof spawnBubbles === 'function') spawnBubbles();
+            showContinue(function(){
+                typeWriter(bd,t2,function(){
+                    showContinue(function(){
+                        typeWriter(bo,t3, function(){
+                            // 4. 打字完成后显示提示小字，并等待点击页面才返回标题
+                            if(bh) bh.classList.add('show');
+                            // 红字在所有字体出现之后才开始闪烁浮现
+                            if(be) setTimeout(function(){ be.classList.add('flicker'); }, 600);
+                            var jumped=false;
+                            function goHome(){
+                                if(jumped) return; jumped=true;
+                                try{
+                                    if(window.__endingBgmStop) window.__endingBgmStop();
+                                }catch(e){}
+                                window.location.href='start.html';
+                            }
+                            if(b) b.style.cursor='pointer';
+                            if(b) b.addEventListener('click', goHome);
+                            document.addEventListener('click', goHome);
+                        });
+                    });
+                });
             });
         });
     });

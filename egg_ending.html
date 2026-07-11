@@ -89,6 +89,14 @@
                 0 0 6px rgba(255,255,255,0.85);
         }
         #black-screen .eg-hint.show { opacity: 1; }
+        #black-screen .cont-prompt {
+            position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%);
+            font-family: "宋体", SimSun, serif; font-size: 15px; letter-spacing: 3px;
+            color: #2a2a55; cursor: pointer; display: none;
+            text-shadow: 0 0 6px #fff, 0 0 10px #fff;
+        }
+        #black-screen .cont-prompt.show { display: block; animation: cont-pulse 1.4s ease-in-out infinite; }
+        @keyframes cont-pulse { 0%,100%{ opacity:0.35; } 50%{ opacity:1; } }
 
         /* ── 轻量光点（性能优化版）──
            关键改动：
@@ -134,11 +142,12 @@
     <div class="eg-bubbles" id="eg-bubbles"></div>
     <div class="eg-title" data-text="彩 蛋 结 局">彩 蛋 结 局</div>
     <div class="eg-desc" data-text="你带陈宇跑到了走廊尽头——那里本不该有一扇门。但它在。门上没有锁，金属表面却冷得发烫，像是从里面向外推了很久都没推动。追了一整段路的黑影停在了走廊中央，沉默地注视着你们。陈宇没有看你，他盯着那扇门，眼眶发红，说：&#10;「那是我的房间。三年前被送进机器之前的房间。」&#10;你推开了门。里面没有家具，没有床，只有一台被砸得变形的旧仪器，墙面上刻满了 2005 年的新闻剪报和失踪学生名单。陈宇走到墙前，伸手摸了摸那些名字，最末一行是他自己。黑影仍站在门外，这一次没有进来——它进不来。&#10;你点了一把火。陈宇看着火焰吞噬那些剪报，第一次没哭。他转过身说：「谢谢你带我回来。」然后他走回了火焰里，化作一缕光，从你视野里彻底消失。&#10;走廊尽头的门关上了。再没有人能打开它。">你带陈宇跑到了走廊尽头——那里本不该有一扇门。但它在。门上没有锁，金属表面却冷得发烫，像是从里面向外推了很久都没推动。追了一整段路的黑影停在了走廊中央，沉默地注视着你们。陈宇没有看你，他盯着那扇门，眼眶发红，说："那是我的房间。三年前被送进机器之前的房间。"你推开了门。里面没有家具，没有床，只有一台被砸得变形的旧仪器，墙面上刻满了 2005 年的新闻剪报和失踪学生名单。陈宇走到墙前，伸手摸了摸那些名字，最末一行是他自己。黑影仍站在门外，这一次没有进来——它进不来。你点了一把火。陈宇看着火焰吞噬那些剪报，第一次没哭。他转过身说："谢谢你带我回来。"然后他走回了火焰里，化作一缕光，从你视野里彻底消失。走廊尽头的门关上了。再没有人能打开它。</div>
-    <div class="eg-over" data-text="隐 藏 结 局 · 亡 者 不 再 流 浪">隐 藏 结 局 · 亡 者 不 再 流 浪</div>
-    <div class="eg-hint">—— 点击任意位置返回首页 ——</div>
+        <div class="eg-over" data-text="隐 藏 结 局 · 亡 者 不 再 流 浪">隐 藏 结 局 · 亡 者 不 再 流 浪</div>
+        <div class="eg-hint">—— 点击任意位置返回首页 ——</div>
+        <div class="cont-prompt">▶ 点击继续</div>
 </div>
 
-<audio id="ending-bgm" src="egg.mp3" loop preload="auto" style="display:none"></audio>
+<audio id="ending-bgm" src="egg.mp3" autoplay muted loop preload="auto" style="display:none"></audio>
 
 <!-- 关闭恐怖 BGM 自动恢复 -->
 <script>
@@ -168,8 +177,17 @@ window.__xyzh_block_bgm_autostart = true;
         var abgm = getAudio();
         if(!abgm) return;
         if(abgm.paused){
-            try { abgm.volume = 0.45; abgm.play().catch(function(){}); } catch(e){}
+            try { abgm.muted = false; abgm.volume = 0.45; var p = abgm.play(); if(p && p.catch) p.catch(function(){}); } catch(e){}
         }
+    }
+
+    // 文件就绪后（含自动播放被允许时）再尝试一次，避免首帧 play() 因未加载而静默失败
+    var abgm = getAudio();
+    if(abgm){
+        // muted 自动播放被浏览器放行后，播放一开始即取消静音（无需用户手势）
+        abgm.addEventListener('play', function(){ try { abgm.muted = false; } catch(e){} });
+        abgm.addEventListener('canplay', tryPlay);
+        abgm.addEventListener('loadeddata', tryPlay);
     }
 
     // 首次用户交互补播（自动播放策略兜底）
@@ -237,27 +255,51 @@ function startEggEnding(){
     // 1. 黑屏直接淡入（无前置页）
     var b=document.getElementById('black-screen');
     if(b) b.classList.add('show');
-    // 2. 标题直接显示（无打字效果），同时立刻生成光点
     var bt=b?b.querySelector('.eg-title'):null;
     var bd=b?b.querySelector('.eg-desc'):null;
     var bo=b?b.querySelector('.eg-over'):null;
+    var bh=b?b.querySelector('.eg-hint'):null;
     var t2=bd?bd.getAttribute('data-text'):'';
     var t3=bo?bo.getAttribute('data-text'):'';
-    if(typeof spawnBubbles === 'function') spawnBubbles();
-    // 3. 正文 + 完结字仍保留打字效果
-    typeWriter(bd, t2, function(){
-        typeWriter(bo, t3, function(){
-            var bh=b?b.querySelector('.eg-hint'):null;
-            if(bh) bh.classList.add('show');
-            var jumped=false;
-            function goHome(){
-                if(jumped) return; jumped=true;
-                try{ if(window.__endingBgmStop) window.__endingBgmStop(); }catch(e){}
-                window.location.href='start.html';
-            }
-            if(b) b.style.cursor='pointer';
-            if(b) b.addEventListener('click', goHome);
-            document.addEventListener('click', goHome);
+    // 先清空标题与正文，避免黑屏一出来就直接显示文字
+    if(bt) bt.textContent='';
+    if(bd) bd.textContent='';
+    if(bo) bo.textContent='';
+
+    // 显示「点击继续」并等待用户点击黑屏，再执行 cb
+    function showContinue(cb){
+        var cp=b?b.querySelector('.cont-prompt'):null;
+        if(cp) cp.classList.add('show');
+        var once=function(){
+            b.removeEventListener('click', once);
+            if(cp) cp.classList.remove('show');
+            cb();
+        };
+        b.addEventListener('click', once);
+    }
+
+    // 2. 第一段：标题（直接显示）+ 立刻生成光点
+    showContinue(function(){
+        if(bt) bt.textContent = bt.getAttribute('data-text');
+        if(typeof spawnBubbles === 'function') spawnBubbles();
+        // 3. 正文 + 完结字仍保留打字效果，且每段都需点击「继续」
+        showContinue(function(){
+            typeWriter(bd, t2, function(){
+                showContinue(function(){
+                    typeWriter(bo, t3, function(){
+                        if(bh) bh.classList.add('show');
+                        var jumped=false;
+                        function goHome(){
+                            if(jumped) return; jumped=true;
+                            try{ if(window.__endingBgmStop) window.__endingBgmStop(); }catch(e){}
+                            window.location.href='start.html';
+                        }
+                        if(b) b.style.cursor='pointer';
+                        if(b) b.addEventListener('click', goHome);
+                        document.addEventListener('click', goHome);
+                    });
+                });
+            });
         });
     });
     if(window.SaveSystem) SaveSystem.recordEnding('彩蛋结局');

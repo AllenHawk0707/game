@@ -489,14 +489,13 @@ window.addEventListener('keyup',function(e){
 
 function tryReachedExit(){
   if(player.x+player.w/2>exitZone.x && player.y>exitZone.y-10 && player.y<exitZone.y+exitZone.h+10){
-    // 冲出地下长廊 → 等同于 mp5 拉完4闸触发核心后返回 map1
-    // 设置三把钥匙：追逐继续 + 传送到侧门通道 + 大门密码失效
-    try{ sessionStorage.setItem('chaseOn','1'); }catch(e){}
-    try{ sessionStorage.setItem('map1_tp_tr','1'); }catch(e){}
-    try{ sessionStorage.setItem('xyzh_chase_solved','1'); }catch(e){}
-    tipText='你冲出了地下长廊……';
+    // 冲出地下长廊 → 直达彩蛋结局，追逐战终止
+    try{ sessionStorage.removeItem('chaseOn'); }catch(e){}
+    try{ sessionStorage.removeItem('chaserRel'); }catch(e){}
+    try{ if(window.BGM && BGM.stopChase) BGM.stopChase(); }catch(e){}
+    tipText='走廊尽头那扇门为你而开……';
     tipTimer=120;
-    setTimeout(function(){ window.location.href='map.html'; }, 800);
+    setTimeout(function(){ window.location.href='egg_ending.html'; }, 800);
   } else {
     tipText='还没到出口……';
     tipTimer=60;
@@ -578,7 +577,7 @@ function aStar(sx,sy,ex,ey){
   var closed={};
   function key(x,y){return x+','+y;}
   var maxIter=4000;  // 防止极端情况下卡死
-  while(open.length>0 && maxIter-->0){
+  while(open.length>0 && maxIter-- > 0){
     // 找最小 f
     var bi=0;
     for(var i=1;i<open.length;i++) if((open[i].g+open[i].h)<(open[bi].g+open[bi].h)) bi=i;
@@ -773,8 +772,19 @@ function updateChaser(){
       caughtDeath=true;
       caughtDeathStart=Date.now();
       playerDead=true;
+      if(chaser){ deathChaserSnap={x:player.x+player.w/2-chaser.w/2, y:player.y+player.h/2-chaser.h/2+8, w:chaser.w, h:chaser.h}; }
+      biteStart=Date.now(); goreSpawned=false;
       chaser=null;
-      setTimeout(function(){ window.location.href='start.html'; }, 1800);
+      // 显示「回到上一个存档点」按钮（若有检查点）
+      if(typeof showDeathCheckpointBtn==='function') showDeathCheckpointBtn();
+      // 有存档时不自动跳转，留在死亡画面让玩家选择回档
+      setTimeout(function(){
+        if(typeof SaveSystem!=='undefined' && SaveSystem.getSaves && SaveSystem.getSaves().length>0){
+          if(typeof showDeathCheckpointBtn==='function') showDeathCheckpointBtn();
+        }else{
+          window.location.href='start.html';
+        }
+      }, 4500);
     }
   }
   // 脚印
@@ -997,14 +1007,65 @@ function drawPlayer(px,py){
   pxRect(ox+3,oy,6,2,'#555');
 }
 
+// 腐化学生黑影模型：三头、四十五臂、独腿；多色腐烂细节 + 走路动画，尺寸与行为逻辑不变
+function drawCorruptedStudent(c, x, y, w, h, alpha){
+  alpha = (alpha==null) ? 1 : alpha;
+  // 走路动画相位（持续缓步移动，营造活物感）
+  var walk = Date.now()*0.011;
+  var bob  = Math.sin(walk)*1.6;        // 身体上下起伏
+  var lurch= Math.sin(walk*0.5)*0.8;    // 身体左右轻晃
+  var xb = x + lurch, yb = y + bob;
+  var cx = xb + w/2, cy = yb + h*0.5;
+  function col(hex,a){ if(alpha>=1) return hex; var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return 'rgba('+r+','+g+','+b+','+(a*alpha)+')'; }
+  // 躯干：腐烂紫红肉体 + 病态绿斑 + 腐肉红
+  pxRect(xb+2, yb+5, w-4, h-5, col('#1c0b16',1));
+  pxRect(xb+4, yb+8, w-8, h-10, col('#3a1226',1));
+  pxRect(xb+5, yb+11, 3, 5, col('#54603a',1));
+  pxRect(xb+w-7, yb+13, 3, 4, col('#6b2a2a',1));
+  // 下半身：3 条腿在下方统一绘制
+  // 三颗头：随身体起伏晃动 + 异色眼（红/黄/青）
+  var heads=[xb+1, xb+w/2-2, xb+w-6];
+  var eyeColors=['#d11010','#e8d020','#2fd6c8'];
+  for(var hi=0; hi<3; hi++){
+    var hx=heads[hi];
+    pxRect(hx, yb-6, 5, 9, col('#39342c',1));
+    pxRect(hx+1, yb-5, 3, 5, col('#4a5a3a',1));
+    pxRect(hx+1, yb-5, 1, 1, eyeColors[hi]);
+    pxRect(hx+3, yb-5, 1, 1, eyeColors[hi]);
+    pxRect(hx+2, yb-2, 1, 2, col('#7a1a1a',1));
+  }
+  // 下半身：3 条腿，随走路交替前后摆动（不再用放射触肢）
+  var legCols=['#5a5248','#4a4038','#5a5248'];
+  c.save();
+  c.lineWidth=2;
+  var legTop = yb + h - 2;
+  var legXs = [xb+3, xb+w/2, xb+w-4];
+  for(var li=0; li<3; li++){
+    var sw = Math.sin(walk*0.8 + li*2.1)*2.2;   // 交替摆腿
+    c.strokeStyle = col(legCols[li],1);
+    c.beginPath();
+    c.moveTo(legXs[li], legTop);
+    c.lineTo(legXs[li]+sw, legTop+7);
+    c.stroke();
+    pxRect(legXs[li]+sw-2, legTop+7, 5, 1, col(legCols[li],1)); // 脚掌
+  }
+  c.restore();
+  // 上端血盆大口（随走路张合）
+  var gape = 2 + Math.abs(Math.sin(walk*0.7))*3;
+  var mx = cx, my = yb - 7;
+  pxRect(mx-6, my-gape, 12, gape*2+3, col('#3a0808',1));    // 大口外肉
+  pxRect(mx-5, my-gape+1, 10, gape*2+1, col('#150202',1));  // 口内深渊
+  for(var ti=0; ti<6; ti++){ pxRect(mx-5+ti*2, my-gape+1, 1, 2+(ti%2), col('#e8e0d0',1)); }   // 上排尖牙
+  for(var tj=0; tj<6; tj++){ pxRect(mx-5+tj*2, my+gape, 1, 2+((tj+1)%2), col('#d8cfc0',1)); }  // 下排尖牙
+  pxRect(mx-6, my+gape+1, 1, 4, col('#8a0d0d',1));          // 口角滴血
+  pxRect(mx+5, my+gape, 1, 3, col('#8a0d0d',1));
+  // 血滴（躯干，随身体）
+  pxRect(xb+3, yb+h-3, 1, 3, col('#8a0d0d',1));
+  pxRect(xb+w-4, yb+h-4, 1, 4, col('#8a0d0d',1));
+}
 function drawChaser(){
   if(DEV_NO_CHASER || !chaser) return;
-  pxRect(chaser.x, chaser.y, chaser.w, chaser.h, '#000');
-  pxRect(chaser.x+chaser.w/2-2, chaser.y-9, 4, 10, '#000');
-  var glow=Math.sin(Date.now()*0.01)*0.25+0.4;
-  ctx.strokeStyle='rgba(140,0,0,'+glow+')';
-  ctx.lineWidth=2;
-  ctx.strokeRect(chaser.x-1, chaser.y-10, chaser.w+2, chaser.h+10);
+  drawCorruptedStudent(ctx, chaser.x, chaser.y, chaser.w, chaser.h);
   // "黑 影" 文字提示
   if(gameTime%30<15){
     pxText('黑 影',chaser.x+chaser.w/2,chaser.y-22,'#a00',7,'center');
@@ -1096,8 +1157,67 @@ function drawHUD(){
   pxText('距 离 出 口：' + Math.floor(pct*100)+'%',W/2,H-7,'#888',7,'center');
 }
 
+// ── 死亡动画：黑影咬下玩家头 + 血液四溅 ──
+var biteStart=0, severedHead=null, bloodParts=[], deathChaserSnap=null, goreSpawned=false;
+function spawnDeathGore(){
+  var hx=player.x+player.w/2, hy=player.y+3;
+  severedHead={x:hx,y:hy,vx:(Math.random()-0.5)*1.6,vy:-2.2-Math.random()*1.2,rot:0,vrot:(Math.random()-0.5)*0.35};
+  bloodParts=[];
+  for(var bi=0;bi<48;bi++){
+    var ang=Math.random()*Math.PI*2, sp=1+Math.random()*4.5;
+    bloodParts.push({x:hx+(Math.random()-0.5)*5,y:hy+(Math.random()-0.5)*5,
+      vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-1.2,life:28+Math.random()*34,sz:1+Math.random()*2});
+  }
+}
+function drawDeathAnim(){
+  if(!caughtDeath) return;
+  var el=Date.now()-biteStart;
+  // 阶段一：怪兽抱住玩家（收拢 + 挣扎晃动），暂不啃头
+  if(el<1500){
+    if(deathChaserSnap){
+      var prog=el/1500;
+      var shk=Math.sin(el*0.05)*2.4*(1-prog*0.55);
+      var gx=deathChaserSnap.x+shk, gy=deathChaserSnap.y+Math.sin(el*0.033)*1.3;
+      drawCorruptedStudent(ctx, gx, gy, deathChaserSnap.w, deathChaserSnap.h);
+      // 环抱手臂横贯玩家身体，随挣扎逐渐收紧
+      var ay=player.y+player.h*0.42, aw=deathChaserSnap.w+6-prog*3;
+      pxRect(deathChaserSnap.x-3+shk, ay,   aw, 3, '#2e2822');
+      pxRect(deathChaserSnap.x-3+shk, ay+4, aw, 2, '#241f1a');
+    }
+    return;
+  }
+  // 阶段二：啃下头（首次进入触发一次喷血）
+  if(!goreSpawned){ spawnDeathGore(); goreSpawned=true; }
+  if(severedHead){
+    severedHead.x+=severedHead.vx; severedHead.y+=severedHead.vy;
+    severedHead.vy+=0.18; severedHead.rot+=severedHead.vrot;
+    if(severedHead.y>player.y+player.h+40) severedHead=null;
+  }
+  for(var i=bloodParts.length-1;i>=0;i--){
+    var p=bloodParts[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.22; p.life--;
+    if(p.life<=0) bloodParts.splice(i,1);
+  }
+  if(!chaser && deathChaserSnap) drawCorruptedStudent(ctx, deathChaserSnap.x, deathChaserSnap.y, deathChaserSnap.w, deathChaserSnap.h);
+  if(severedHead){
+    ctx.save();
+    ctx.translate(severedHead.x,severedHead.y);
+    ctx.rotate(severedHead.rot);
+    pxRect(-3,-3,6,7,'#d9cfc4');
+    pxRect(-2,-2,4,5,'#b89a86');
+    pxRect(-2,-1,1,1,'#222'); pxRect(1,-1,1,1,'#222');
+    pxRect(-2,2,4,1,'#5a1010');
+    pxRect(-3,3,6,2,'#9a0d0d');
+    ctx.restore();
+  }
+  for(var j=0;j<bloodParts.length;j++){
+    var q=bloodParts[j];
+    pxRect(q.x,q.y,q.sz,q.sz,'#a00d0d');
+  }
+}
 function drawChaserDeath(){
   if(!caughtDeath) return;
+  var el=Date.now()-biteStart;
+  if(el<3000){ pxRect(0,0,W,H,'rgba(0,0,0,0.25)'); return; }
   var alpha=Math.min(1,(Date.now()-caughtDeathStart||0)/500);
   pxRect(0,0,W,H,'rgba(0,0,0,'+alpha*0.7+')');
   var sx2=(Math.random()-0.5)*4;
@@ -1254,6 +1374,7 @@ function render(){
   // 玩家 & 黑影
   drawPlayer(player.x,player.y);
   drawChaser();
+  drawDeathAnim();
 
   // 黑暗遮罩（玩家周围可见，远处渐入黑暗 — 增强版，视野更小压迫感更强）
   var px2=player.x+player.w/2;
