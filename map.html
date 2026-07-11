@@ -507,7 +507,7 @@ function handleInteraction(hint){
     BGM.playComputer();               // 先播放电脑音效
     sessionStorage.setItem('mapReturn','102');
     // 延迟跳转，确保电脑音效能完整播完再进入电脑页（避免页面瞬间卸载掐断声音）
-    setTimeout(function(){ go('index.html'); }, 1200);
+    setTimeout(function(){ go('forum.html'); }, 1200);
     return;
   }else if(hint.type==='stairs'){
     if(chaser){
