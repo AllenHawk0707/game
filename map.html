@@ -522,11 +522,11 @@ function handleInteraction(hint){
       });
     }
   }else if(hint.type==='sideStairs'){
-    // 侧门通道 → 地下配电迷宫（需先拉下总电闸）
-    var bp=false;
-    try{ bp=sessionStorage.getItem('breakerOff')==='1'; }catch(e){}
-    if(!bp){
-      tip('这个应急配电室好像只有在总闸门被拉下后才会紧急开启入口·····听说配电室在三楼 可从来没有人见过');
+    // 侧门通道 → 地下配电迷宫：需先按下生化实验室的红色按钮
+    var rp=false;
+    try{ rp=sessionStorage.getItem('redPressed')==='1'; }catch(e){}
+    if(!rp){
+      tip('这个应急配电室好像只有在生化实验室的红色按钮被按下后才会紧急开启入口·····');
       return;
     }
     // 追逐战路径必须瞬间跳转：不播下楼过渡音效，直接跳到 mp5
