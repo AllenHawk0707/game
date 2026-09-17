@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>星榆中学 2008 · 地下配电迷宫</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -1039,5 +1039,65 @@ gameLoop();
 <script src="time.js"></script>
 <script src="bgm.js"></script>
 <script src="save.js"></script>
+<script>
+(function(){
+  var IS_TOUCH = (('ontouchstart' in window) || (navigator.maxTouchPoints>0) || /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent)) && !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches);
+  if(!IS_TOUCH) return; // 电脑版完全不创建任何控件
+  var C = document.getElementById('c');
+  if(!C) return;
+  var K; try{ K = (typeof keys!=='undefined')?keys:null; }catch(e){ K=null; }
+  if(!K){ K = {}; }
+  function gMS(){ try{ return (typeof machineScreen!=='undefined')?machineScreen:undefined; }catch(e){ return undefined; } }
+  function gPW(){ try{ return (typeof pwDialog!=='undefined')?pwDialog:undefined; }catch(e){ return undefined; } }
+  function tapKey(key){
+    window.dispatchEvent(new KeyboardEvent('keydown',{key:key,bubbles:true,cancelable:true}));
+    window.dispatchEvent(new KeyboardEvent('keyup',{key:key,bubbles:true,cancelable:true}));
+  }
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+  var layer = document.createElement('div');
+  layer.id='mbt-controls';
+  layer.style.cssText='position:fixed;left:0;top:0;width:100%;height:100%;z-index:60;pointer-events:none;';
+  document.body.appendChild(layer);
+  var JOY_R=60;
+  var joy=document.createElement('div');
+  joy.style.cssText='position:fixed;left:22px;bottom:22px;width:'+(JOY_R*2)+'px;height:'+(JOY_R*2)+'px;border-radius:50%;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.4);pointer-events:auto;touch-action:none;';
+  var knob=document.createElement('div');
+  knob.style.cssText='position:absolute;left:'+(JOY_R-22)+'px;top:'+(JOY_R-22)+'px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.55);border:2px solid rgba(255,255,255,0.9);';
+  joy.appendChild(knob);
+  layer.appendChild(joy);
+  var joyId=null, joyCx=0, joyCy=0;
+  function setMove(dx,dy){ var dead=JOY_R*0.35; K['w']=dy<-dead; K['s']=dy>dead; K['a']=dx<-dead; K['d']=dx>dead; }
+  function clearMove(){ K['w']=K['a']=K['s']=K['d']=false; }
+  function moveJoy(t){ var dx=t.clientX-joyCx, dy=t.clientY-joyCy; var dist=Math.sqrt(dx*dx+dy*dy), max=JOY_R-22; if(dist>max){ dx=dx/dist*max; dy=dy/dist*max; } knob.style.left=(JOY_R-22+dx)+'px'; knob.style.top=(JOY_R-22+dy)+'px'; setMove(dx,dy); }
+  joy.addEventListener('touchstart', function(e){ e.preventDefault(); var t=e.changedTouches[0]; joyId=t.identifier; var r=joy.getBoundingClientRect(); joyCx=r.left+JOY_R; joyCy=r.top+JOY_R; moveJoy(t); }, {passive:false});
+  joy.addEventListener('touchmove', function(e){ e.preventDefault(); for(var i=0;i<e.changedTouches.length;i++){ if(e.changedTouches[i].identifier===joyId) moveJoy(e.changedTouches[i]); } }, {passive:false});
+  function endJoy(e){ for(var i=0;i<e.changedTouches.length;i++){ if(e.changedTouches[i].identifier===joyId){ joyId=null; knob.style.left=(JOY_R-22)+'px'; knob.style.top=(JOY_R-22)+'px'; clearMove(); } } }
+  joy.addEventListener('touchend', endJoy);
+  joy.addEventListener('touchcancel', endJoy);
+  function mkBtn(label,color){ var b=document.createElement('div'); b.textContent=label; b.style.cssText='position:fixed;right:22px;width:66px;height:66px;border-radius:50%;background:rgba(0,0,0,0.35);border:2px solid '+color+';color:'+color+';font:bold 14px sans-serif;display:flex;align-items:center;justify-content:center;text-align:center;pointer-events:auto;touch-action:none;user-select:none;'; return b; }
+  var btnI=mkBtn('互动','#7fd0ff'); btnI.style.right='22px'; btnI.style.bottom='22px';
+  var btnC=mkBtn('关闭','#ff8a8a'); btnC.style.right='100px'; btnC.style.bottom='22px';
+  var btnY=mkBtn('确认','#7fffa0'); btnY.style.right='22px'; btnY.style.bottom='100px';
+  var btnN=mkBtn('取消','#ffd27f'); btnN.style.right='100px'; btnN.style.bottom='100px';
+  layer.appendChild(btnI); layer.appendChild(btnC); layer.appendChild(btnY); layer.appendChild(btnN);
+  btnI.addEventListener('touchstart', function(e){ e.preventDefault(); tapKey('f'); }, {passive:false});
+  btnC.addEventListener('touchstart', function(e){ e.preventDefault(); tapKey('Escape'); }, {passive:false});
+  btnY.addEventListener('touchstart', function(e){ e.preventDefault(); tapKey('y'); }, {passive:false});
+  btnN.addEventListener('touchstart', function(e){ e.preventDefault(); tapKey('n'); }, {passive:false});
+  if(C){ C.addEventListener('touchstart', function(e){ var t=e.changedTouches[0]; window.dispatchEvent(new MouseEvent('mousedown',{clientX:t.clientX,clientY:t.clientY,bubbles:true})); }, {passive:true}); }
+  var pwdWrap=document.createElement('div');
+  pwdWrap.style.cssText='position:fixed;left:0;top:0;width:100%;display:none;z-index:70;background:rgba(0,0,0,0.65);padding:8px;box-sizing:border-box;pointer-events:auto;';
+  var pwdInput=document.createElement('input'); pwdInput.type='text'; pwdInput.placeholder='输入密码'; pwdInput.style.cssText='width:58%;padding:10px;font-size:16px;border:2px solid #3cff7a;background:#0a0a0a;color:#3cff7a;border-radius:4px;';
+  var pwdOk=document.createElement('button'); pwdOk.textContent='填入'; pwdOk.style.cssText='padding:10px 12px;font-size:15px;margin-left:6px;border:2px solid #3cff7a;background:#0a2a14;color:#3cff7a;border-radius:4px;';
+  var pwdHide=document.createElement('button'); pwdHide.textContent='隐藏'; pwdHide.style.cssText='padding:10px 12px;font-size:15px;margin-left:6px;border:2px solid #888;background:#222;color:#ccc;border-radius:4px;';
+  pwdWrap.appendChild(pwdInput); pwdWrap.appendChild(pwdOk); pwdWrap.appendChild(pwdHide);
+  document.body.appendChild(pwdWrap);
+  pwdInput.addEventListener('keydown', function(e){ e.stopPropagation(); });
+  pwdInput.addEventListener('input', function(e){ e.stopPropagation(); });
+  pwdOk.addEventListener('click', function(){ var v=pwdInput.value; var ms=gMS(), pw=gPW(); if(ms && ms.input!==undefined){ ms.input=v; } if(pw && pw.input!==undefined){ pw.input=v; } pwdInput.value=''; pwdWrap.style.display='none'; });
+  pwdHide.addEventListener('click', function(){ pwdWrap.style.display='none'; });
+  setInterval(function(){ var ms=gMS(), pw=gPW(); if(ms||pw){ if(pwdWrap.style.display!=='block'){ pwdWrap.style.display='block'; } } else { if(pwdWrap.style.display!=='none'){ pwdWrap.style.display='none'; } } }, 300);
+})();
+</script>
 </body>
 </html>
