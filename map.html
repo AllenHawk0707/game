@@ -1605,8 +1605,10 @@ gameLoop();
   joy.appendChild(knob);
   layer.appendChild(joy);
   var joyId=null, joyCx=0, joyCy=0;
-  function setMove(dx,dy){ var dead=JOY_R*0.35; K['w']=dy<-dead; K['s']=dy>dead; K['a']=dx<-dead; K['d']=dx>dead; }
-  function clearMove(){ K['w']=K['a']=K['s']=K['d']=false; }
+  var __mbtDown={};
+  function pressKey(k,down){ if(down&&!__mbtDown[k]){ __mbtDown[k]=true; window.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true})); } else if(!down&&__mbtDown[k]){ __mbtDown[k]=false; window.dispatchEvent(new KeyboardEvent('keyup',{key:k,bubbles:true,cancelable:true})); } }
+  function setMove(dx,dy){ var dead=JOY_R*0.35; pressKey('w',dy<-dead); pressKey('s',dy>dead); pressKey('a',dx<-dead); pressKey('d',dx>dead); }
+  function clearMove(){ pressKey('w',false); pressKey('s',false); pressKey('a',false); pressKey('d',false); }
   function moveJoy(t){ var dx=t.clientX-joyCx, dy=t.clientY-joyCy; var dist=Math.sqrt(dx*dx+dy*dy), max=JOY_R-22; if(dist>max){ dx=dx/dist*max; dy=dy/dist*max; } knob.style.left=(JOY_R-22+dx)+'px'; knob.style.top=(JOY_R-22+dy)+'px'; setMove(dx,dy); }
   joy.addEventListener('touchstart', function(e){ e.preventDefault(); var t=e.changedTouches[0]; joyId=t.identifier; var r=joy.getBoundingClientRect(); joyCx=r.left+JOY_R; joyCy=r.top+JOY_R; moveJoy(t); }, {passive:false});
   joy.addEventListener('touchmove', function(e){ e.preventDefault(); for(var i=0;i<e.changedTouches.length;i++){ if(e.changedTouches[i].identifier===joyId) moveJoy(e.changedTouches[i]); } }, {passive:false});
