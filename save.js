@@ -6,6 +6,9 @@
 (function () {
   'use strict';
 
+  // 触屏判定（与各地图内联控件脚本保持一致）
+  var IS_TOUCH = (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent)) && !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches);
+
   var KEY = 'xyzh_saves';
   var ACH_KEY = 'xyzh_achievements';   // 已通往结局的成就
 
@@ -367,6 +370,14 @@
       // 不自动存档；弹自定义模态询问：存档 / 不存档 / 取消（留在原页）
       askReturnToTitle();
     });
+    // 触屏端：把存档 / 返回标题挪到左上角堆叠，避免与右下角的
+    // 互动 / 关闭 / 确认 / 取消 移动按钮簇重叠（电脑端保持原右下/左下布局）
+    if (IS_TOUCH) {
+      var fs = document.getElementById('xyzh-fab-save');
+      if (fs) { fs.style.right = 'auto'; fs.style.bottom = 'auto'; fs.style.top = '14px'; fs.style.left = '14px'; }
+      var ft = document.getElementById('xyzh-fab-title');
+      if (ft) { ft.style.right = 'auto'; ft.style.bottom = 'auto'; ft.style.top = '60px'; ft.style.left = '14px'; }
+    }
   }
 
   // 「返 回 标 题」前的存档询问对话框（三选一：存档并返回 / 不存档并返回 / 取消留在原页）
