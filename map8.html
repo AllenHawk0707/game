@@ -51,9 +51,12 @@ var W=960,H=540;
 C.width=W;C.height=H;
 
 function resize(){
-  var s=Math.min(window.innerWidth/W,window.innerHeight/H);
-  C.style.width=(W*s)+'px';
-  C.style.height=(H*s)+'px';
+  var iw=window.innerWidth, ih=window.innerHeight, baseA=960/540, a=iw/ih;
+  if(a>=baseA){ H=540; W=Math.round(540*a); }
+  else { W=960; H=Math.round(960/a); }
+  C.width=W; C.height=H;
+  C.style.width=iw+'px';
+  C.style.height=ih+'px';
 }
 resize();window.addEventListener('resize',resize);
 
