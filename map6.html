@@ -368,18 +368,6 @@ window.addEventListener('mousedown',function(e){
   var scaleX=W/rect.width, scaleY=H/rect.height;
   var mx=(e.clientX-rect.left)*scaleX, my=(e.clientY-rect.top)*scaleY;
 
-  // ★ 调试按钮：免密关停（无视密码，直接走关停成功流程）
-  if(!machineOff && machineScreen.debugBtnRect){
-    var dr=machineScreen.debugBtnRect;
-    if(mx>=dr.x && mx<=dr.x+dr.w && my>=dr.y && my<=dr.y+dr.h){
-      console.log('[调试] 免密关停 NM-2005');
-      // 模拟正确密码走通流程
-      machineScreen.input = MACHINE_CODE;
-      submitMachineScreen();
-      return;
-    }
-  }
-
   if(machineOff) return;  // 已关停界面下只显示关闭按钮
   var r=machineScreen.btnRect;
   if(!r) return;
@@ -1467,16 +1455,6 @@ function render(){
     pxText(machineOff?'【 关 闭 界 面 】':'【 确 认 关 停 】', bx2+bw2/2, by2+9, '#3cff7a', 11, 'center');
     machineScreen.btnRect={x:bx2,y:by2,w:bw2,h:bh2};
 
-    // ★ 调试专用：免密关停按钮（仅未关停时显示，调试用，不影响剧情）
-    if(!machineOff){
-      var dbw=140, dbh=22, dbx=sx+24, dby=by2+3;
-      pxRect(dbx,dby,dbw,dbh,'#2a0a14');
-      drawBorder(dbx,dby,dbw,dbh,'#ff5a5a',1);
-      pxText('【调试·免密关停】', dbx+dbw/2, dby+6, '#ff8888', 10, 'center');
-      machineScreen.debugBtnRect={x:dbx,y:dby,w:dbw,h:dbh};
-    } else {
-      machineScreen.debugBtnRect=null;
-    }
     pxText('[Esc] 退出', sx+24, sy+sh-14, '#2a8a4a',10,'left');
   }
 
