@@ -123,6 +123,41 @@ html,body{
   50%{transform:translate(3%,-2%) scale(1.05);opacity:0.85}
 }
 
+/* ── 校舍阴森剪影（底部楼影，一扇窗还亮着昏黄旧灯） ── */
+#school-silhouette{
+  position:absolute;
+  left:0;right:0;bottom:0;
+  height:300px;
+  z-index:3;
+  pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 320' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cpattern id='win' width='64' height='76' patternUnits='userSpaceOnUse'%3E%3Crect x='10' y='12' width='36' height='48' fill='%23171009'/%3E%3C/pattern%3E%3C/defs%3E%3Crect x='0' y='190' width='1600' height='130' fill='%23080503'/%3E%3Crect x='300' y='110' width='1000' height='210' fill='%230b0705'/%3E%3Crect x='300' y='110' width='1000' height='6' fill='%23050302'/%3E%3Crect x='360' y='150' width='880' height='150' fill='url(%23win)'/%3E%3Crect x='720' y='30' width='160' height='90' fill='%230b0705'/%3E%3Cpolygon points='700,30 800,-5 900,30' fill='%23060402'/%3E%3Crect x='778' y='58' width='44' height='40' fill='%233a2a12'/%3E%3Crect x='500' y='60' width='6' height='60' fill='%230b0705'/%3E%3Crect x='440' y='54' width='126' height='8' fill='%230b0705'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:bottom center;
+  background-size:100% 100%;
+  opacity:0.92;
+}
+
+/* ── 若隐若现的血手印 ── */
+.blood-hand{
+  position:absolute;
+  width:92px;height:128px;
+  z-index:7;
+  pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 140'%3E%3Cg fill='%237a1010'%3E%3Cellipse cx='50' cy='96' rx='30' ry='34'/%3E%3Crect x='22' y='30' width='13' height='48' rx='6'/%3E%3Crect x='39' y='16' width='13' height='58' rx='6'/%3E%3Crect x='56' y='18' width='13' height='56' rx='6'/%3E%3Crect x='71' y='34' width='13' height='44' rx='6'/%3E%3Crect x='10' y='62' width='12' height='34' rx='6'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-size:contain;
+  opacity:0.16;
+  animation:handFade 11s ease-in-out infinite;
+}
+#hand-tr{ top:12%; right:8%; transform:rotate(18deg); }
+#hand-bl{ bottom:15%; left:6%; width:72px; height:100px; transform:rotate(-26deg); animation-delay:5.5s; }
+
+/* 血手印缓慢明灭，仿佛还没干透 */
+@keyframes handFade{
+  0%,100%{opacity:0.09}
+  50%{opacity:0.26}
+}
+
 /* 烛光：不规则的明暗抖动 + 轻微摇曳位移，材质(径向渐变)完全保持不变 */
 @keyframes candleFlicker{
   0%   {opacity:0.5; transform:translate(-50%,-50%) translate(0,0) scale(1)}
@@ -602,6 +637,13 @@ body.intro-playing .menu-btn{
 
   <!-- 阴森雾气层 -->
   <div id="fog"></div>
+
+  <!-- 校舍阴森剪影 -->
+  <div id="school-silhouette"></div>
+
+  <!-- 若隐若现的血手印 -->
+  <div class="blood-hand" id="hand-tr"></div>
+  <div class="blood-hand" id="hand-bl"></div>
 
   <!-- 飘浮粒子 -->
   <span class="particle" style="top:15%;left:10%;animation-delay:0s"></span>
