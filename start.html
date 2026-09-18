@@ -4,18 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>星榆中学</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600;900&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 
-@font-face {
-  font-family:'GameTitle';
-  src:local('SimSun'),local('宋体'),local('serif');
+:root{
+  /* 标题：毛笔楷书，灵异手写感，贴合“旧校园灵异”设定 */
+  --font-title:'Ma Shan Zheng','STKaiti','KaiTi','楷体',serif;
+  /* 正文：精致衬线，旧式书卷气 */
+  --font-body:'Noto Serif SC','Songti SC','STSong','SimSun','宋体',serif;
 }
 
 html,body{
   width:100%;height:100%;
-  background:#0a0a0a;
-  font-family:"宋体",SimSun,serif;
+  background:#0a0506;
+  font-family:var(--font-body);
   overflow:hidden;
   cursor:default;
   user-select:none;
@@ -29,7 +34,10 @@ html,body{
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  background:radial-gradient(ellipse at center, #1a1a1a 0%, #0a0a0a 60%, #000 100%);
+  background:
+    radial-gradient(ellipse at center, #1c0f0f 0%, #0a0506 55%, #000 100%),
+    radial-gradient(ellipse at center, rgba(120,20,20,0.10) 0%, transparent 62%);
+  box-shadow:inset 0 0 220px rgba(0,0,0,0.92);
 }
 
 /* ── CRT 扫描线叠加层 ── */
@@ -73,7 +81,7 @@ html,body{
   top:30%;left:50%;
   transform:translate(-50%,-50%);
   width:400px;height:400px;
-  background:radial-gradient(circle, rgba(139,40,40,0.12) 0%, transparent 70%);
+  background:radial-gradient(circle, rgba(170,30,30,0.18) 0%, transparent 70%);
   border-radius:50%;
   z-index:1;
   will-change:opacity,transform;
@@ -105,15 +113,15 @@ html,body{
 }
 
 #game-title{
-  font-family:"宋体",SimSun,serif;
+  font-family:var(--font-title);
   font-size:72px;
   font-weight:bold;
-  color:#8a7a5a;
+  color:#9c3b32;
   letter-spacing:14px;
   text-shadow:
-    0 0 5px rgba(138,122,90,0.5),
-    0 0 20px rgba(138,122,90,0.2),
-    0 0 40px rgba(138,122,90,0.1),
+    0 0 6px rgba(190,60,50,0.55),
+    0 0 22px rgba(150,30,25,0.35),
+    0 0 46px rgba(120,20,15,0.2),
     2px 2px 0 #000;
 }
 
@@ -126,24 +134,24 @@ html,body{
 /* 年久失修的电灯泡：静止时辉光与原材质完全一致，偶发骤暗/熄灭与快速闪烁。
    闪烁时仅收起辉光并略微降低不透明度，文字色与黑色描边材质保持不变 */
 @keyframes bulbFlicker{
-  0%,27%  {text-shadow:0 0 5px rgba(138,122,90,0.5),0 0 20px rgba(138,122,90,0.2),0 0 40px rgba(138,122,90,0.1),2px 2px 0 #000;opacity:1}
-  28%     {text-shadow:0 0 1px rgba(138,122,90,0.06),2px 2px 0 #000;opacity:0.45}
-  29%     {text-shadow:0 0 5px rgba(138,122,90,0.5),0 0 20px rgba(138,122,90,0.2),0 0 40px rgba(138,122,90,0.1),2px 2px 0 #000;opacity:1}
-  30%     {text-shadow:0 0 1px rgba(138,122,90,0.06),2px 2px 0 #000;opacity:0.4}
-  31%     {text-shadow:0 0 5px rgba(138,122,90,0.5),0 0 20px rgba(138,122,90,0.2),0 0 40px rgba(138,122,90,0.1),2px 2px 0 #000;opacity:1}
-  67%     {text-shadow:0 0 5px rgba(138,122,90,0.5),0 0 20px rgba(138,122,90,0.2),0 0 40px rgba(138,122,90,0.1),2px 2px 0 #000;opacity:1}
-  68%     {text-shadow:0 0 0 rgba(138,122,90,0),2px 2px 0 #000;opacity:0.3}
-  72%     {text-shadow:0 0 0 rgba(138,122,90,0),2px 2px 0 #000;opacity:0.3}
-  73%     {text-shadow:0 0 5px rgba(138,122,90,0.5),0 0 20px rgba(138,122,90,0.2),0 0 40px rgba(138,122,90,0.1),2px 2px 0 #000;opacity:1}
-  100%    {text-shadow:0 0 5px rgba(138,122,90,0.5),0 0 20px rgba(138,122,90,0.2),0 0 40px rgba(138,122,90,0.1),2px 2px 0 #000;opacity:1}
+  0%,27%  {text-shadow:0 0 6px rgba(190,60,50,0.55),0 0 22px rgba(150,30,25,0.35),0 0 46px rgba(120,20,15,0.2),2px 2px 0 #000;opacity:1}
+  28%     {text-shadow:0 0 1px rgba(190,60,50,0.06),2px 2px 0 #000;opacity:0.45}
+  29%     {text-shadow:0 0 6px rgba(190,60,50,0.55),0 0 22px rgba(150,30,25,0.35),0 0 46px rgba(120,20,15,0.2),2px 2px 0 #000;opacity:1}
+  30%     {text-shadow:0 0 1px rgba(190,60,50,0.05),2px 2px 0 #000;opacity:0.4}
+  31%     {text-shadow:0 0 6px rgba(190,60,50,0.55),0 0 22px rgba(150,30,25,0.35),0 0 46px rgba(120,20,15,0.2),2px 2px 0 #000;opacity:1}
+  67%     {text-shadow:0 0 6px rgba(190,60,50,0.55),0 0 22px rgba(150,30,25,0.35),0 0 46px rgba(120,20,15,0.2),2px 2px 0 #000;opacity:1}
+  68%     {text-shadow:0 0 0 rgba(190,60,50,0),2px 2px 0 #000;opacity:0.3}
+  72%     {text-shadow:0 0 0 rgba(190,60,50,0),2px 2px 0 #000;opacity:0.3}
+  73%     {text-shadow:0 0 6px rgba(190,60,50,0.55),0 0 22px rgba(150,30,25,0.35),0 0 46px rgba(120,20,15,0.2),2px 2px 0 #000;opacity:1}
+  100%    {text-shadow:0 0 6px rgba(190,60,50,0.55),0 0 22px rgba(150,30,25,0.35),0 0 46px rgba(120,20,15,0.2),2px 2px 0 #000;opacity:1}
 }
 
 #subtitle{
   font-size:16px;
-  color:#555;
+  color:#7a4a44;
   letter-spacing:6px;
   margin-top:8px;
-  font-family:"宋体",SimSun,serif;
+  font-family:var(--font-body);
 }
 
 /* ── 按钮区域 ── */
@@ -159,7 +167,7 @@ html,body{
 .menu-btn{
   width:220px;
   padding:14px 0;
-  font-family:"宋体",SimSun,serif;
+  font-family:var(--font-body);
   font-size:18px;
   letter-spacing:8px;
   color:#999;
@@ -203,17 +211,17 @@ html,body{
   position:absolute;
   bottom:30px;
   z-index:10;
-  color:#333;
+  color:#4a2a26;
   font-size:12px;
   letter-spacing:3px;
-  font-family:"宋体",SimSun,serif;
+  font-family:var(--font-body);
 }
 
 /* ── 角落飘浮粒子 ── */
 .particle{
   position:absolute;
   width:2px;height:2px;
-  background:rgba(138,122,90,0.4);
+  background:rgba(190,60,50,0.4);
   border-radius:50%;
   z-index:2;
   pointer-events:none;
@@ -328,8 +336,8 @@ html,body{
 #transition-text{
   position:relative;
   z-index:302;
-  color:#c0b090;
-  font-family:"宋体",SimSun,serif;
+  color:#caa89a;
+  font-family:var(--font-title);
   letter-spacing:8px;
   text-align:center;
   opacity:0;
@@ -351,12 +359,12 @@ html,body{
   font-size:36px;
   display:block;
   margin-bottom:10px;
-  text-shadow:0 0 10px rgba(138,122,90,0.4);
+  text-shadow:0 0 10px rgba(190,60,50,0.4);
 }
 
 #transition-text .small{
   font-size:14px;
-  color:#6a5a3a;
+  color:#9c5a4a;
   display:block;
 }
 
@@ -463,13 +471,13 @@ html,body{
   100%{opacity:1;transform:translate(-50%,-50%) scale(1)}
 }
 .intro-line1{
-  display:block;font-family:"宋体",SimSun,serif;
-  font-size:46px;color:#c9b88e;
+  display:block;font-family:var(--font-title);
+  font-size:46px;color:#c8503f;
   letter-spacing:14px;
-  text-shadow:0 0 18px rgba(0,0,0,0.9),0 0 40px rgba(138,122,90,0.3);
+  text-shadow:0 0 18px rgba(0,0,0,0.9),0 0 40px rgba(190,60,50,0.35);
 }
 .intro-line2{
-  display:block;font-size:15px;color:#8a7a5a;
+  display:block;font-size:15px;color:#9c5a4a;
   letter-spacing:10px;margin-top:12px;
   text-shadow:0 0 10px rgba(0,0,0,0.9);
 }
@@ -526,7 +534,7 @@ body.intro-playing .menu-btn{
 }
 .horror-center{position:relative;z-index:2;text-align:center;}
 .horror-title{
-  font-family:"宋体",SimSun,serif;
+  font-family:var(--font-title);
   font-size:72px;font-weight:bold;letter-spacing:14px;
   color:#c81010;
   text-shadow:0 0 8px #ff0000,0 0 24px #8b0000,0 0 50px #ff0000,2px 2px 0 #000;
@@ -539,7 +547,7 @@ body.intro-playing .menu-btn{
 }
 .horror-sub{
   margin-top:10px;
-  font-family:"宋体",SimSun,serif;font-size:16px;letter-spacing:6px;
+  font-family:var(--font-title);font-size:16px;letter-spacing:6px;
   color:#7a0000;text-shadow:0 0 8px #ff0000;
 }
 </style>
@@ -733,15 +741,15 @@ function injectStartDialogCss(){
   var s=document.createElement('style');
   s.id='xyzh-start-dialog-style';
   s.textContent=
-    '.xyzh-start-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:500;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;font-family:"宋体",SimSun,serif;opacity:0;transition:opacity .25s ease;pointer-events:none;}'+
+    '.xyzh-start-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:500;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;font-family:var(--font-body);opacity:0;transition:opacity .25s ease;pointer-events:none;}'+
     '.xyzh-start-overlay.show{opacity:1;pointer-events:auto;}'+
     '.xyzh-start-box{width:420px;max-width:90vw;background:#0c0c0c;border:1px solid #6a5a3a;padding:24px 26px;box-shadow:0 0 40px rgba(0,0,0,0.8);color:#d8c89a;animation:xyzh-box-in .35s ease;}'+
-    '.xyzh-start-title{font-size:20px;letter-spacing:8px;text-align:center;margin-bottom:14px;color:#8a7a5a;text-shadow:0 0 8px rgba(138,122,90,0.3);}'+
+    '.xyzh-start-title{font-size:20px;letter-spacing:8px;text-align:center;margin-bottom:14px;color:#b04a3a;text-shadow:0 0 8px rgba(190,60,50,0.35);}'+
     '.xyzh-start-msg{font-size:14px;letter-spacing:2px;line-height:1.9;text-align:center;margin-bottom:18px;color:#9a8a6a;}'+
     '.xyzh-start-input{width:100%;padding:10px 12px;background:#0a0a0a;border:1px solid #4a4030;color:#d8c89a;font-family:inherit;font-size:15px;letter-spacing:2px;box-sizing:border-box;margin-bottom:18px;outline:none;}'+
     '.xyzh-start-input:focus{border-color:#8a7a5a;}'+
     '.xyzh-start-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}'+
-    '.xyzh-start-btn{flex:1;min-width:90px;padding:11px 0;background:rgba(20,20,20,0.6);border:1px solid #4a4030;color:#9a8a6a;font-family:"宋体",SimSun,serif;font-size:15px;letter-spacing:4px;cursor:pointer;transition:color .2s ease,border-color .2s ease,background .2s ease;}'+
+    '.xyzh-start-btn{flex:1;min-width:90px;padding:11px 0;background:rgba(20,20,20,0.6);border:1px solid #4a4030;color:#9a8a6a;font-family:var(--font-body);font-size:15px;letter-spacing:4px;cursor:pointer;transition:color .2s ease,border-color .2s ease,background .2s ease;}'+
     '.xyzh-start-btn:hover{color:#eee;border-color:#a06a3a;background:rgba(40,20,10,0.5);}'+
     '.xyzh-start-btn.primary{border-color:#8a7a5a;color:#d8c89a;}'+
     '.xyzh-start-btn.primary:hover{color:#fff;border-color:#d8c89a;background:rgba(80,60,20,0.4);}'+
