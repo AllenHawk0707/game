@@ -95,6 +95,9 @@ html,body{
   z-index:5;
   pointer-events:none;
   background:
+    linear-gradient(108deg, transparent 46.8%, rgba(190,170,140,0.05) 46.9%, transparent 47.2%),
+    linear-gradient(73deg, transparent 62.4%, rgba(190,170,140,0.04) 62.5%, transparent 62.8%),
+    linear-gradient(95deg, transparent 81.5%, rgba(0,0,0,0.18) 81.6%, transparent 82%),
     radial-gradient(circle at 18% 28%, rgba(70,52,28,0.30), transparent 32%),
     radial-gradient(circle at 82% 68%, rgba(45,33,18,0.34), transparent 38%),
     radial-gradient(circle at 50% 88%, rgba(80,60,32,0.22), transparent 42%),
@@ -123,6 +126,22 @@ html,body{
   50%{transform:translate(3%,-2%) scale(1.05);opacity:0.85}
 }
 
+/* 第二层雾：反向错开漂移，层次更细腻 */
+#fog::after{
+  content:'';
+  position:absolute;
+  inset:-20%;
+  background:
+    radial-gradient(ellipse at 62% 30%, rgba(140,130,115,0.055), transparent 42%),
+    radial-gradient(ellipse at 24% 78%, rgba(125,115,100,0.05), transparent 48%);
+  animation:fogDrift2 34s ease-in-out infinite;
+}
+
+@keyframes fogDrift2{
+  0%,100%{transform:translate(0,0) scale(1.04);opacity:0.5}
+  50%{transform:translate(-3%,2%) scale(1);opacity:0.8}
+}
+
 /* ── 校舍阴森剪影（底部楼影，一扇窗还亮着昏黄旧灯） ── */
 #school-silhouette{
   position:absolute;
@@ -130,7 +149,7 @@ html,body{
   height:300px;
   z-index:3;
   pointer-events:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 320' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cpattern id='win' width='64' height='76' patternUnits='userSpaceOnUse'%3E%3Crect x='10' y='12' width='36' height='48' fill='%23171009'/%3E%3C/pattern%3E%3C/defs%3E%3Crect x='0' y='190' width='1600' height='130' fill='%23080503'/%3E%3Crect x='300' y='110' width='1000' height='210' fill='%230b0705'/%3E%3Crect x='300' y='110' width='1000' height='6' fill='%23050302'/%3E%3Crect x='360' y='150' width='880' height='150' fill='url(%23win)'/%3E%3Crect x='720' y='30' width='160' height='90' fill='%230b0705'/%3E%3Cpolygon points='700,30 800,-5 900,30' fill='%23060402'/%3E%3Crect x='778' y='58' width='44' height='40' fill='%233a2a12'/%3E%3Crect x='500' y='60' width='6' height='60' fill='%230b0705'/%3E%3Crect x='440' y='54' width='126' height='8' fill='%230b0705'/%3E%3C/svg%3E");
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 340' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cpattern id='w' width='58' height='72' patternUnits='userSpaceOnUse'%3E%3Crect x='9' y='11' width='34' height='46' fill='%23130d08'/%3E%3C/pattern%3E%3Cpattern id='r' width='26' height='28' patternUnits='userSpaceOnUse'%3E%3Crect x='9' y='4' width='7' height='24' fill='%23040201'/%3E%3C/pattern%3E%3C/defs%3E%3Crect x='0' y='292' width='1600' height='48' fill='%23050301'/%3E%3Crect x='20' y='150' width='340' height='150' fill='%230c0805'/%3E%3Crect x='48' y='182' width='284' height='118' fill='url(%23w)'/%3E%3Crect x='380' y='96' width='800' height='204' fill='%230a0604'/%3E%3Crect x='380' y='96' width='800' height='5' fill='%23060402'/%3E%3Crect x='410' y='128' width='740' height='172' fill='url(%23w)'/%3E%3Crect x='526' y='139' width='34' height='46' fill='%23060402'/%3E%3Cpath d='M528 141 l20 18 l-8 12 l14 14' stroke='%23030201' stroke-width='2' fill='none'/%3E%3Crect x='932' y='211' width='34' height='46' fill='%23060402'/%3E%3Cpath d='M934 213 l16 20 l-10 10 l12 13' stroke='%23030201' stroke-width='2' fill='none'/%3E%3Crect x='690' y='18' width='180' height='100' fill='%230a0604'/%3E%3Cpolygon points='678,18 780,-14 882,18' fill='%23060402'/%3E%3Crect x='770' y='40' width='40' height='34' fill='%23433114'%3E%3Canimate attributeName='opacity' values='1;0.55;0.9;0.35;1' keyTimes='0;0.28;0.5;0.74;1' dur='9s' repeatCount='indefinite'/%3E%3C/rect%3E%3Crect x='1200' y='176' width='380' height='124' fill='%230c0805'/%3E%3Crect x='1228' y='204' width='324' height='96' fill='url(%23w)'/%3E%3Crect x='1246' y='64' width='5' height='228' fill='%23070402'/%3E%3Crect x='1232' y='70' width='32' height='4' fill='%23070402'/%3E%3Cpath d='M60 200 Q 660 260 1246 74' stroke='%23070402' stroke-width='2' fill='none' opacity='0.7'/%3E%3Cpath d='M200 236 Q 700 286 1246 82' stroke='%23070402' stroke-width='1.5' fill='none' opacity='0.5'/%3E%3Crect x='0' y='312' width='1600' height='28' fill='url(%23r)'/%3E%3C/svg%3E");
   background-repeat:no-repeat;
   background-position:bottom center;
   background-size:100% 100%;
@@ -143,7 +162,7 @@ html,body{
   width:92px;height:128px;
   z-index:7;
   pointer-events:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 140'%3E%3Cg fill='%237a1010'%3E%3Cellipse cx='50' cy='96' rx='30' ry='34'/%3E%3Crect x='22' y='30' width='13' height='48' rx='6'/%3E%3Crect x='39' y='16' width='13' height='58' rx='6'/%3E%3Crect x='56' y='18' width='13' height='56' rx='6'/%3E%3Crect x='71' y='34' width='13' height='44' rx='6'/%3E%3Crect x='10' y='62' width='12' height='34' rx='6'/%3E%3C/g%3E%3C/svg%3E");
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 160'%3E%3Cg fill='%23701212'%3E%3Cellipse cx='52' cy='104' rx='27' ry='32'/%3E%3Crect x='25' y='40' width='11' height='46' rx='5.5'/%3E%3Crect x='39' y='26' width='11' height='58' rx='5.5'/%3E%3Crect x='54' y='30' width='11' height='54' rx='5.5'/%3E%3Crect x='68' y='44' width='11' height='42' rx='5.5'/%3E%3Crect x='8' y='74' width='11' height='30' rx='5.5' transform='rotate(24 13 89)'/%3E%3Crect x='47' y='134' width='4' height='22' rx='2'/%3E%3Crect x='60' y='138' width='3' height='14' rx='1.5'/%3E%3Ccircle cx='22' cy='146' r='2.5'/%3E%3Ccircle cx='84' cy='30' r='2'/%3E%3Ccircle cx='92' cy='58' r='1.8'/%3E%3Ccircle cx='16' cy='24' r='1.6'/%3E%3C/g%3E%3C/svg%3E");
   background-repeat:no-repeat;
   background-size:contain;
   opacity:0.16;
@@ -222,7 +241,37 @@ html,body{
   font-size:16px;
   color:#8a7a58;
   letter-spacing:6px;
-  margin-top:8px;
+  margin-top:10px;
+  font-family:var(--font-body);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:16px;
+  width:max-content;
+  margin-left:auto;
+  margin-right:auto;
+}
+
+/* 副标题两侧的旧式细分隔线 */
+#subtitle::before,#subtitle::after{
+  content:'';
+  width:58px;height:1px;
+  flex:none;
+}
+#subtitle::before{background:linear-gradient(90deg, transparent, rgba(138,122,88,0.5));}
+#subtitle::after{background:linear-gradient(90deg, rgba(138,122,88,0.5), transparent);}
+
+/* 档案卷宗标签：旧档案封面的双线小印框 */
+#archive-tag{
+  margin-top:18px;
+  display:inline-block;
+  padding:4px 16px;
+  border:1px solid rgba(120,95,60,0.30);
+  outline:1px solid rgba(120,95,60,0.14);
+  outline-offset:3px;
+  font-size:11px;
+  letter-spacing:5px;
+  color:#5d5340;
   font-family:var(--font-body);
 }
 
@@ -239,6 +288,8 @@ html,body{
   border:1px solid rgba(120,95,60,0.35);
   border-radius:4px;
   box-shadow:0 10px 30px rgba(0,0,0,0.55), inset 0 0 32px rgba(0,0,0,0.4);
+  outline:1px solid rgba(120,95,60,0.14);
+  outline-offset:4px;
 }
 
 .menu-btn{
@@ -256,6 +307,17 @@ html,body{
   transition:color .2s ease, border-color .2s ease;
   position:relative;
   outline:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+/* 静态装饰：内缩细线双框，旧档案按钮质感（非交互动画） */
+.menu-btn::after{
+  content:'';
+  position:absolute;
+  inset:3px;
+  border:1px solid rgba(120,95,60,0.16);
+  border-radius:2px;
+  pointer-events:none;
 }
 
 .menu-btn:hover{
@@ -657,6 +719,7 @@ body.intro-playing .menu-btn{
   <div id="title-area">
     <div id="game-title">星榆<span class="flicker-char">中</span>学</div>
     <div id="subtitle">— 2 0 0 8 —</div>
+    <div id="archive-tag">档 · 星中〔二〇〇八〕 · 卷宗存档</div>
   </div>
 
   <!-- 按钮 -->
