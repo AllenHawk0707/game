@@ -156,6 +156,31 @@ html,body{
   opacity:0.92;
 }
 
+/* ── 亮窗投光：整栋楼只剩塔楼那一间还亮着，昏黄的光顺着墙落到地面与雾里 ──
+   位置对齐 SVG 剪影中 x≈49.4% 的那扇窗（viewBox 1600×340 → 屏幕比例） */
+#window-light{
+  position:absolute;
+  left:49.4%;bottom:0;
+  transform:translateX(-50%);
+  width:300px;height:170px;
+  z-index:4;
+  pointer-events:none;
+  background:
+    radial-gradient(ellipse 130px 34px at 50% 100%, rgba(178,128,58,0.22), transparent 72%),
+    linear-gradient(180deg, rgba(150,110,50,0.08), transparent 78%);
+  filter:blur(2px);
+  animation:lanternPulse 9s ease-in-out infinite;
+}
+
+/* 与 SVG 里那扇窗的闪烁同为 9s 周期：亮窗变暗时，落在地上的光也随之变暗 */
+@keyframes lanternPulse{
+  0%   {opacity:0.70}
+  28%  {opacity:0.95}
+  50%  {opacity:0.60}
+  74%  {opacity:0.90}
+  100% {opacity:0.70}
+}
+
 /* ── 若隐若现的血手印 ── */
 .blood-hand{
   position:absolute;
@@ -206,7 +231,8 @@ html,body{
   font-size:72px;
   font-weight:bold;
   color:#7e4636;
-  letter-spacing:14px;
+  /* 收紧字距：Ma Shan Zheng 是毛笔行楷，拉得太开会把字切成孤立方块，笔势断裂 */
+  letter-spacing:7px;
   animation:titleUnease 9s ease-in-out infinite;
 }
 
@@ -320,15 +346,85 @@ html,body{
   pointer-events:none;
 }
 
+/* 悬停：骨白 + 暗红描边，与整屏血色/暗红统一（transition 动画逻辑保持不变） */
 .menu-btn:hover{
-  color:#e6d6b4;
-  border-color:rgba(160,130,80,0.7);
+  color:#d8c8b0;
+  border-color:rgba(150,60,45,0.75);
 }
 
 .menu-btn:active{
-  color:#e6d6b4;
-  border-color:rgba(170,140,90,0.9);
+  color:#d8c8b0;
+  border-color:rgba(170,70,52,0.95);
 }
+
+/* ── 叙事道具：点名册残页 ──
+   整屏此前全是氛围层而无一"实物"；这张纸把「学生曾经在这里」讲出来，
+   并与中部的档案卷宗标签呼应。姓名写成手书感，最后一行的名字已被红笔划去。
+   （名字与日期可按剧情设定替换） */
+.roll-call{
+  position:absolute;
+  left:38px;bottom:76px;
+  width:214px;
+  z-index:7;
+  pointer-events:none;
+  padding:13px 15px 11px;
+  transform:rotate(-7deg);
+  transform-origin:left bottom;
+  /* 旧练习纸：暗黄褐，与整屏暗红棕同系，不用亮纸抢戏 */
+  background:
+    repeating-linear-gradient(180deg, transparent, transparent 21px, rgba(180,160,110,0.09) 21px, rgba(180,160,110,0.09) 22px),
+    linear-gradient(152deg, #2b2519 0%, #221d14 58%, #191510 100%);
+  border:1px solid rgba(145,125,82,0.20);
+  box-shadow:0 10px 26px rgba(0,0,0,0.72), inset 0 0 30px rgba(0,0,0,0.5);
+  animation:paperSway 15s ease-in-out infinite;
+}
+/* 折痕 + 右下角暗红污渍 */
+.roll-call::after{
+  content:'';
+  position:absolute;inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(122deg, transparent 47.6%, rgba(0,0,0,0.30) 47.8%, transparent 48.2%),
+    radial-gradient(circle at 88% 92%, rgba(92,18,14,0.32), transparent 44%);
+}
+.rc-head{
+  font-size:11px;letter-spacing:3px;color:#6a5c40;
+  text-align:center;margin-bottom:7px;padding-bottom:6px;
+  border-bottom:1px solid rgba(145,125,82,0.16);
+}
+.rc-list{list-style:none}
+.rc-list li{
+  display:flex;align-items:center;gap:9px;height:22px;
+  font-family:var(--font-body);font-size:12px;letter-spacing:2px;
+}
+.rc-list b{font-weight:normal;font-size:10px;color:#5a4e38;letter-spacing:0}
+/* 名字为手写体，与印刷体表头区分 */
+.rc-list span{
+  flex:1;color:#8a7a58;
+  font-family:var(--font-title);
+  font-size:15px;letter-spacing:1px;
+}
+.rc-list em{font-style:normal;font-size:11px;color:#5f5a3a}
+/* 被红笔划去的那一行 */
+.rc-out span{
+  color:#7e3a30;
+  text-decoration:line-through;
+  text-decoration-color:rgba(170,40,32,0.85);
+  text-decoration-thickness:1.5px;
+}
+.rc-out em{color:#8a2c22}
+.rc-foot{
+  margin-top:8px;padding-top:6px;
+  border-top:1px solid rgba(145,125,82,0.16);
+  font-size:10px;letter-spacing:3px;color:#5a4e38;text-align:center;
+}
+/* 极缓慢的纸张呼吸，避免在静止画面里显得像贴图 */
+@keyframes paperSway{
+  0%,100%{transform:rotate(-7deg) translateY(0)}
+  50%{transform:rotate(-8.2deg) translateY(-3px)}
+}
+/* 窄屏时残页会挤到按钮区，直接收起 */
+@media (max-width:1000px){ .roll-call{display:none} }
 
 /* ── 角落飘浮粒子 ── */
 .particle{
@@ -341,9 +437,18 @@ html,body{
   animation:float 6s ease-in-out infinite;
 }
 
+/* 加入横向漂移：纯垂直位移的粒子一眼就能看出在循环 */
 @keyframes float{
-  0%,100%{transform:translateY(0);opacity:0.3}
-  50%{transform:translateY(-20px);opacity:0.7}
+  0%,100%{transform:translate(0,0);opacity:0.3}
+  35%{transform:translate(-5px,-13px);opacity:0.55}
+  70%{transform:translate(4px,-20px);opacity:0.7}
+}
+/* 第二种速率与轨迹：错开周期后再混合使用，整体不再整齐划一 */
+.particle.b{animation:floatB 9.5s ease-in-out infinite}
+@keyframes floatB{
+  0%,100%{transform:translate(0,0);opacity:0.25}
+  30%{transform:translate(9px,-14px);opacity:0.6}
+  60%{transform:translate(-6px,-26px);opacity:0.4}
 }
 
 /* ── VHS 色差闪烁 ── */
@@ -585,7 +690,7 @@ html,body{
 .intro-line1{
   display:block;font-family:var(--font-title);
   font-size:46px;color:#9c5a3a;
-  letter-spacing:14px;
+  letter-spacing:7px;
 }
 .intro-line2{
   display:block;font-size:15px;color:#8a7a58;
@@ -613,53 +718,11 @@ body.intro-playing .menu-btn{
 
 /* 尊重系统"减少动态效果"设置，关闭持续重绘的特效 */
 @media (prefers-reduced-motion: reduce){
-  .intro-grain,.particle,#red-glow,#vhs-flash,.flicker-char{animation:none !important}
+  .intro-grain,.particle,#red-glow,#vhs-flash,.flicker-char,
+  #fog,#fog::after,#game-title,.blood-hand,
+  #window-light,.roll-call{animation:none !important}
 }
 
-/* ── 恐怖版界面：随机短暂闪现（jump-scare 闪屏） ── */
-#horror-flash{
-  position:fixed;inset:0;z-index:400;
-  display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(ellipse at center, #2a0000 0%, #000 72%);
-  opacity:0;visibility:hidden;pointer-events:none;overflow:hidden;
-}
-#horror-flash.show{ animation:horrorFlash 0.4s steps(1) forwards; }
-@keyframes horrorFlash{
-  0%{opacity:0;visibility:visible}
-  8%{opacity:1}
-  100%{opacity:0;visibility:hidden}
-}
-.horror-ghost{
-  position:absolute;
-  width:62%;max-width:540px;
-  filter:contrast(1.4) brightness(0.95) drop-shadow(0 0 30px rgba(190,0,0,0.7));
-  mix-blend-mode:screen;
-  opacity:0.92;
-  animation:ghostJolt 0.4s steps(2) infinite;
-}
-@keyframes ghostJolt{
-  0%{transform:translate(0,0) scale(1)}
-  50%{transform:translate(-7px,5px) scale(1.05)}
-  100%{transform:translate(6px,-4px) scale(1.02)}
-}
-.horror-center{position:relative;z-index:2;text-align:center;}
-.horror-title{
-  font-family:var(--font-title);
-  font-size:72px;font-weight:bold;letter-spacing:14px;
-  color:#c81010;
-  text-shadow:2px 2px 0 #000;
-  animation:titleGlitch 0.4s steps(2) infinite;
-}
-@keyframes titleGlitch{
-  0%{transform:translate(0,0);text-shadow:2px 2px 0 #000}
-  50%{transform:translate(-4px,2px);text-shadow:-3px 0 #00e5ff,3px 0 #ff0000,2px 2px 0 #000}
-  100%{transform:translate(3px,-2px);text-shadow:3px 0 #00e5ff,-3px 0 #ff0000,2px 2px 0 #000}
-}
-.horror-sub{
-  margin-top:10px;
-  font-family:var(--font-title);font-size:16px;letter-spacing:6px;
-  color:#7a0000;
-}
 </style>
 </head>
 <body>
@@ -692,17 +755,20 @@ body.intro-playing .menu-btn{
   <!-- 校舍阴森剪影 -->
   <div id="school-silhouette"></div>
 
+  <!-- 亮窗落在地面上的昏黄光斑 -->
+  <div id="window-light"></div>
+
   <!-- 若隐若现的血手印 -->
   <div class="blood-hand" id="hand-tr"></div>
   <div class="blood-hand" id="hand-bl"></div>
 
   <!-- 飘浮粒子 -->
   <span class="particle" style="top:15%;left:10%;animation-delay:0s"></span>
-  <span class="particle" style="top:25%;right:12%;animation-delay:1.5s"></span>
+  <span class="particle b" style="top:25%;right:12%;animation-delay:1.5s"></span>
   <span class="particle" style="top:70%;left:8%;animation-delay:3s"></span>
-  <span class="particle" style="top:60%;right:10%;animation-delay:4.5s"></span>
+  <span class="particle b" style="top:60%;right:10%;animation-delay:4.5s"></span>
   <span class="particle" style="top:40%;left:85%;animation-delay:2s"></span>
-  <span class="particle" style="bottom:20%;left:20%;animation-delay:5s"></span>
+  <span class="particle b" style="bottom:20%;left:20%;animation-delay:5s"></span>
 
   <!-- 标题 -->
   <div id="title-area">
@@ -717,6 +783,19 @@ body.intro-playing .menu-btn{
     <button class="menu-btn" onclick="loadGame()">存 档 点</button>
     <button class="menu-btn" onclick="openAchievements()">成 就</button>
     <button class="menu-btn" onclick="exitGame()">退 出 游 戏</button>
+  </div>
+
+  <!-- 点名册残页：左下角，一个名字已被红笔划去 -->
+  <div class="roll-call" id="roll-call">
+    <div class="rc-head">值 日 · 高 二（三）班</div>
+    <ul class="rc-list">
+      <li><b>01</b><span>陈 鸣</span><em>到</em></li>
+      <li><b>02</b><span>周 雪</span><em>到</em></li>
+      <li><b>03</b><span>李 承</span><em>到</em></li>
+      <li class="rc-out"><b>07</b><span>林 晚</span><em>缺</em></li>
+      <li><b>08</b><span>赵 屿</span><em>到</em></li>
+    </ul>
+    <div class="rc-foot">二〇〇八 · 九月</div>
   </div>
 
 </div>
@@ -736,15 +815,6 @@ body.intro-playing .menu-btn{
 <div id="scanlines"></div>
 <div id="noise"></div>
 <div id="vhs-flash"></div>
-
-<!-- 恐怖版界面：开场结束后每 8~20 秒随机短暂闪现一次 -->
-<div id="horror-flash">
-  <img class="horror-ghost" src="goast.png" alt="">
-  <div class="horror-center">
-    <div class="horror-title">星榆中学</div>
-    <div class="horror-sub">— 2 0 0 8 —</div>
-  </div>
-</div>
 
 <script src="bgm.js"></script>
 <script src="time.js"></script>
@@ -939,7 +1009,7 @@ function exitGame(){
     window.close();
     // 如果 window.close() 不生效（部分浏览器限制），则重定向
     setTimeout(function(){
-      document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:#555;font-family:宋体,SimSun,serif;font-size:18px;letter-spacing:4px;">游戏已关闭</div>';
+      document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:#555;font-family:var(--font-body);font-size:18px;letter-spacing:4px;">游戏已关闭</div>';
     },200);
   }
 }
@@ -963,31 +1033,12 @@ window.addEventListener('load',function(){
     },6800);
 });
 
-// 恐怖版界面：开场结束后，每 8~20 秒随机闪现一次（短暂 jump-scare）
-(function(){
-  // 尊重"减少动态效果"设置，跳过惊吓闪屏
-  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  var horror=document.getElementById('horror-flash');
-  if(!horror) return;
-  function schedule(){
-    var delay=8000+Math.random()*12000; // 8~20 秒随机
-    setTimeout(function(){
-      horror.classList.add('show');
-      AmbientMusic.sting(); // 同步触发惊吓音效（不协和音簇，无额外音频）
-      setTimeout(function(){horror.classList.remove('show');},400); // 闪屏持续约 0.4s
-      schedule();
-    },delay);
-  }
-  setTimeout(schedule,7000); // 等开场动画结束后再开始随机
-})();
-
 /* ============================================================
    氛围音乐引擎 · 宏伟庄严（majestic）
    纯 Web Audio 实时合成，无需外部曲目；无任何惊吓音效
    流程配乐：
      开场  → intro()        宏大和弦涌起（庄严铺底）
      菜单  → 低频根基 + 中频和声 + 缓慢和弦 + 稀疏钟琴（宏伟庄严）
-     闪现  → sting()        宏大温暖和弦涌起（非惊吓）
      进图  → transition()   庄严下行 + 大锣，衔接地图
    注：浏览器禁止自动播放，首次点击/按键即启动音频。
    ============================================================ */
@@ -1082,15 +1133,6 @@ var AmbientMusic=(function(){
     swell.forEach(function(f){var o=ctx.createOscillator();o.type='triangle';o.frequency.value=f;o.detune.value=Math.random()*8-4;var og=ctx.createGain();og.gain.value=0.18;o.connect(og);og.connect(g);o.start();o.stop(now()+6.2);});
     gong(55,0.4);
   }
-  // —— 闪现：宏大温暖和弦涌起（非惊吓）——
-  function sting(){
-    if(!ctx||ctx.state!=='running')return;
-    var rev=[261.63,329.63,392.00,523.25]; // C4 E4 G4 C5 大三和弦，宏大温暖
-    var g=ctx.createGain();g.gain.value=0.0001;out(g);
-    g.gain.exponentialRampToValueAtTime(0.4,now()+0.15);
-    g.gain.exponentialRampToValueAtTime(0.0001,now()+1.6);
-    rev.forEach(function(f){var o=ctx.createOscillator();o.type='triangle';o.frequency.value=f;o.detune.value=Math.random()*8-4;var og=ctx.createGain();og.gain.value=0.16;o.connect(og);og.connect(g);o.start();o.stop(now()+1.8);});
-  }
   // —— 进入地图：庄严下行 ——
   function transition(){
     ensure(); if(!ctx)return;
@@ -1101,7 +1143,7 @@ var AmbientMusic=(function(){
   }
   function intro(){ ensure(); if(!ctx)return; if(!started){startBed();} introSwell(); }
 
-  return { ensure:ensure, intro:intro, sting:sting, transition:transition };
+  return { ensure:ensure, intro:intro, transition:transition };
 })();
 
 // 浏览器禁止自动播放：首次交互即启动/恢复音频
