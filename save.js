@@ -204,20 +204,22 @@
 
   // 记录已通往的结局，并删除"进入结局的存档"
   // keepSlot=true 时保留存档（死亡结局可回档重试，不删除存档槽）
+  // 注意：无论活跃存档槽是否还存在，结局达成都必须落库，避免"达成了却不显示"
+  //（例如先走过坏结局删掉了存档槽、或换了标签页导致 sessionStorage 活跃 id 失效）
   function recordEnding(endingName, keepSlot) {
     var id = getActiveId();
-    if (id == null) return;
     var saves = getSaves();
     var idx = -1, slot = null;
-    for (var i = 0; i < saves.length; i++) {
-      if (saves[i].id === id) { idx = i; slot = saves[i]; break; }
+    if (id != null) {
+      for (var i = 0; i < saves.length; i++) {
+        if (saves[i].id === id) { idx = i; slot = saves[i]; break; }
+      }
     }
-    if (!slot) return;
-    var name = '存档' + (idx + 1);
+    var name = slot ? ('存档' + (idx + 1)) : '存档';
     var ach = getAchievements();
     ach.push({ ending: endingName, name: name, time: Date.now() });
     setAchievements(ach);
-    if (!keepSlot) removeSlot(id);   // 删除进入结局的存档
+    if (slot && !keepSlot) removeSlot(id);   // 仅当存档槽存在时删除进入结局的存档
   }
 
   function loadSlot(id, customState) {
