@@ -486,12 +486,18 @@ function submitPw(){
   var p=pwDialog;
   if(p.input===p.correct){
     pwDialog=null;
+    if(window.SaveSystem && SaveSystem.resetPwFails) SaveSystem.resetPwFails();
     if(p.targetId==='cabinet_lab'){ cabinetUnlocked=true; }
     var d=docs[p.docId];
     if(d){ openDialog(d.title,d.text); BGM.tryPlaySwitchSound(); }
   }else{
     p.error='密码错误';
     p.input='';
+    if(window.SaveSystem && SaveSystem.noteWrongPassword && SaveSystem.noteWrongPassword()){
+      pwDialog=null;
+      try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+      if(typeof triggerChaserDeath==='function') triggerChaserDeath();
+    }
   }
 }
 
@@ -1067,6 +1073,9 @@ function drawChaserDeath(){
   var sx2=(Math.random()-0.5)*4, sy2=(Math.random()-0.5)*4;
   pxText('你死了',W/2+sx2+2,H/2+sy2-24+2,'#000',42,'center');
   pxText('你死了',W/2+sx2,  H/2+sy2-24,  '#a00',42,'center');
+  if(window.__pwBruteDeath){
+    pxText('禁止穷举密码！',W/2, H/2+18, 'rgba(235,150,150,'+alpha+')', 16, 'center');
+  }
 }
 
 // ── 装饰绘制（破败学校 + 实验室元素）──

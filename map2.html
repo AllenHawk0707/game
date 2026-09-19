@@ -510,24 +510,36 @@ function submitPw(){
     if(p.input===stairsPwCorrect){
       stairsLocked=false;
       pwDialog=null;
+      if(window.SaveSystem && SaveSystem.resetPwFails) SaveSystem.resetPwFails();
       tip('三楼铁门已解锁——可以前往三楼了');
       screenShake=12;
       BGM.tryPlaySwitchSound();
     }else{
       p.error='密码错误，铁门纹丝不动';
       p.input='';
+      if(window.SaveSystem && SaveSystem.noteWrongPassword && SaveSystem.noteWrongPassword()){
+        pwDialog=null;
+        try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+        if(typeof triggerChaserDeath==='function') triggerChaserDeath();
+      }
     }
   }else if(p.targetId==='doc_zhang'){
     if(p.input.toUpperCase()===p.correct.toUpperCase()){
       zhangLocked=false;
       sessionStorage.setItem('zhangUnlocked','1');
       pwDialog=null;
+      if(window.SaveSystem && SaveSystem.resetPwFails) SaveSystem.resetPwFails();
       var d=docs[p.docId];
       if(d) { openDialog(d.title,d.text); BGM.tryPlaySwitchSound(); }
       tip('工号正确——政教主任办公室已解锁');
     }else{
       p.error='工号错误，门锁未解除';
       p.input='';
+      if(window.SaveSystem && SaveSystem.noteWrongPassword && SaveSystem.noteWrongPassword()){
+        pwDialog=null;
+        try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+        if(typeof triggerChaserDeath==='function') triggerChaserDeath();
+      }
     }
   }
 }
@@ -886,6 +898,11 @@ function drawChaserDeath(){
   ctx.textAlign='center';
   ctx.textBaseline='middle';
   ctx.fillText('你死了',W/2,H/2);
+  if(window.__pwBruteDeath){
+    ctx.font='bold 18px "Courier New","SimSun",monospace';
+    ctx.fillStyle='rgba(235,130,130,'+a+')';
+    ctx.fillText('禁止穷举密码！',W/2,H/2+48);
+  }
   ctx.restore();
 }
 

@@ -221,6 +221,35 @@
     // 结局后不再删除存档槽：玩家可保留存档回顾/继续
   }
 
+  // ── 密码穷举防护 ──
+  // 30 秒内连续输错 10 次密码（跨所有密码框共享计数）→ 判定为穷举，触发死亡
+  var PW_FAIL_KEY = 'xyzh_pw_fails';
+  var PW_FAIL_WINDOW = 30000;   // 时间窗口：30 秒
+  var PW_FAIL_LIMIT = 10;       // 连续错误上限：10 次
+  function getPwFails() {
+    try { var a = JSON.parse(sessionStorage.getItem(PW_FAIL_KEY)); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+  function setPwFails(a) {
+    try { sessionStorage.setItem(PW_FAIL_KEY, JSON.stringify(a)); } catch (e) {}
+  }
+  // 记录一次密码错误，返回 true 表示已达穷举阈值（调用方应触发死亡）
+  function noteWrongPassword() {
+    var now = Date.now();
+    var arr = getPwFails().filter(function (t) { return now - t <= PW_FAIL_WINDOW; });
+    arr.push(now);
+    setPwFails(arr);
+    if (arr.length >= PW_FAIL_LIMIT) {
+      try { window.__pwBruteDeath = true; } catch (e) {}   // 标记死亡原因：穷举密码
+      return true;
+    }
+    return false;
+  }
+  // 输入正确时清零（连续中断，重新计数）
+  function resetPwFails() {
+    setPwFails([]);
+    try { window.__pwBruteDeath = false; } catch (e) {}
+  }
+
   function loadSlot(id, customState) {
     var slot = findSlot(id);
     if (!slot) return;
@@ -564,6 +593,8 @@
     hasEnding: hasEnding,     // 是否已通往某结局（好结局解锁用）
     getSaves: getSaves,       // 暴露存档列表
     getSavesCount: function () { return getSaves().length; },
+    noteWrongPassword: noteWrongPassword,   // 记录一次密码错误，达阈值返回 true
+    resetPwFails: resetPwFails,             // 密码正确时清零
     MAX_SLOTS: MAX_SLOTS,
     toast: toast
   };

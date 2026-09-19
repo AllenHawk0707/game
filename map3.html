@@ -445,6 +445,11 @@ function submitPw(){
   var p=pwDialog;
   p.error='密码错误';
   p.input='';
+  if(window.SaveSystem && SaveSystem.noteWrongPassword && SaveSystem.noteWrongPassword()){
+    pwDialog=null;
+    try{ sessionStorage.removeItem('chaseOn'); sessionStorage.removeItem('chaserRel'); }catch(e){}
+    if(typeof triggerChaserDeath==='function') triggerChaserDeath();
+  }
 }
 
 function tip(msg){ tipText=msg; tipTimer=120; }
@@ -618,6 +623,11 @@ function drawChaserDeath(){
   ctx.textAlign='center';
   ctx.textBaseline='middle';
   ctx.fillText('你死了',W/2,H/2);
+  if(window.__pwBruteDeath){
+    ctx.font='bold 18px "Courier New","SimSun",monospace';
+    ctx.fillStyle='rgba(235,130,130,'+a+')';
+    ctx.fillText('禁止穷举密码！',W/2,H/2+48);
+  }
   ctx.restore();
 }
 
