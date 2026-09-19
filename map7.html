@@ -397,6 +397,8 @@ var interactZones = [
 ];
 
 function handleInteraction(hint){
+  // 被黑影吃掉后死亡优先：任何出口/楼层转换交互均失效
+  if(caughtDeath) return;
   if(hint.id === 'map8_door'){
     go('map8.html');
   }

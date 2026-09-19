@@ -132,7 +132,10 @@ window.addEventListener('keydown',function(e){
   keys[e.key.toLowerCase()]=true;
   if(e.key==='f'||e.key==='F'){
     e.preventDefault();
-    if(dialog){ closeDialog(); return; }
+    if(dialog){
+      if(dialog.pages && dialog.page<dialog.pages.length-1){ dialog.page++; return; }
+      closeDialog(); return;
+    }
     if(interactionHint){ handleInteraction(interactionHint); }
   }
   if(e.key==='Escape'){
@@ -207,7 +210,28 @@ function findInteraction(){
 }
 
 // ── Dialog ──
-function openDialog(title,text){ dialog={title:title,text:text}; }
+function openDialog(title,text){
+  // 预折行并分页，避免长文档溢出对话框
+  var raw=text.split('\n');
+  var lines=[];
+  ctx.font='11px "Courier New","SimSun",monospace';
+  for(var i=0;i<raw.length;i++){
+    var L=raw[i];
+    while(ctx.measureText(L).width>440 && L.length>1){
+      var cut=L.length;
+      while(cut>1 && ctx.measureText(L.slice(0,cut)).width>440) cut--;
+      lines.push(L.slice(0,cut));
+      L=L.slice(cut);
+    }
+    lines.push(L);
+  }
+  var perPage=13;
+  var pages=[];
+  for(var p=0;p<lines.length;p+=perPage) pages.push(lines.slice(p,p+perPage));
+  if(!pages.length) pages.push(['']);
+  dialog={title:title,text:text,pages:pages,page:0};
+}
+window.__openDialog=openDialog;
 function closeDialog(){
   if(returnToMap3){
     returnToMap3=false;
@@ -465,11 +489,15 @@ function render(){
     pxRect(dx,dy,dw,22,'#1a1a1a');
     drawBorder(dx,dy,dw,22,P.DIALOG_BORDER,1);
     pxText(dialog.title,dx+dw/2,dy+5,P.DIALOG_TITLE,11,'center');
-    var lines=dialog.text.split('\n');
+    var lines=dialog.pages?dialog.pages[dialog.page]:dialog.text.split('\n');
     for(var li=0;li<lines.length;li++){
       pxText(lines[li],dx+16,dy+30+li*16,P.DIALOG_TEXT,11);
     }
-    pxText('[F] / [ESC] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    if(dialog.pages && dialog.page<dialog.pages.length-1){
+      pxText('[F] 继续  第 '+(dialog.page+1)+'/'+dialog.pages.length+' 页',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    }else{
+      pxText('[F] / [ESC] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    }
   }
 }
 

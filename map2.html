@@ -280,7 +280,11 @@ window.addEventListener('keydown',function(e){
   }
   if(e.key==='f'||e.key==='F'){
     e.preventDefault();
-    if(dialog){ closeDialog(); return; }
+    if(dialog){
+      if(dialog.pages && !dialog.special && dialog.page<dialog.pages.length-1){ dialog.page++; }
+      else{ closeDialog(); }
+      return;
+    }
     if(pwDialog){ submitPw(); return; }
     if(interactionHint){
       handleInteraction(interactionHint);
@@ -340,6 +344,8 @@ function nearZone(px,py,zone){
 
 // ── Interaction ──
 function handleInteraction(hint){
+  // 被黑影吃掉后死亡优先：任何出口/楼层转换交互均失效
+  if(caughtDeath) return;
   if(hint.type==='bed'){
     openBedDialog();
     BGM.tryPlaySwitchSound();
@@ -415,7 +421,25 @@ function findInteraction(){
 
 // ── Dialog ──
 function openDialog(title,text){
-  dialog={title:title,text:text};
+  // 预折行并分页，避免长文档溢出对话框
+  var raw=text.split('\n');
+  var lines=[];
+  ctx.font='10px "Courier New","SimSun",monospace';
+  for(var i=0;i<raw.length;i++){
+    var L=raw[i];
+    while(ctx.measureText(L).width>448 && L.length>1){
+      var cut=L.length;
+      while(cut>1 && ctx.measureText(L.slice(0,cut)).width>448) cut--;
+      lines.push(L.slice(0,cut));
+      L=L.slice(cut);
+    }
+    lines.push(L);
+  }
+  var perPage=17;
+  var pages=[];
+  for(var p=0;p<lines.length;p+=perPage) pages.push(lines.slice(p,p+perPage));
+  if(!pages.length) pages.push(['']);
+  dialog={title:title,text:text,pages:pages,page:0};
 }
 function closeDialog(){ dialog=null; }
 
@@ -585,8 +609,10 @@ function update(){
     Footsteps.update(false, 0);
   }
 
-  findInteraction();
+  // 黑影抓捕先判定：被怪物吃掉死亡优先级高于楼层转换（同帧踩楼梯又被贴脸时判死）
   updateChaser();
+  if(caughtDeath) return;
+  findInteraction();
 
   if(tipTimer>0) tipTimer--;
   if(tipTimer<=0) tipText='';
@@ -611,7 +637,7 @@ function pxText(text,x,y,c,size,align){
 function drawBorder(x,y,w,h,c,t){
   t=t||2;
   pxRect(x,y,w,t,c); pxRect(x,y+h-t,w,t,c);
-  pxRect(x,t,y,h,c);   pxRect(x+w-t,y,t,h,c);
+  pxRect(x,y,t,h,c);   pxRect(x+w-t,y,t,h,c);
 }
 
 // ── 右上角时间系统 HUD（统一 UI） ──
@@ -909,6 +935,24 @@ function render(){
   pxText('二  楼  大  厅',B.L+CW/2+1,hallY+hallH/2-7+1,'#000',12,'center');
   pxText('二  楼  大  厅',B.L+CW/2,hallY+hallH/2-7,'#aaa',12,'center');
 
+  // Stairs icons（先画楼梯贴图，再画门，避免门被楼梯底色盖住）
+  // Left stairs (col0) - going down
+  pxRect(cols[0].x,roomTopY+20,cols[0].w-4,roomTopH+gapH+roomBotH-40,'#1a1a18');
+  for(var syy=0;syy<5;syy++){ pxRect(cols[0].x+4,roomTopY+25+syy*16,cols[0].w-12,6,'#2a2a2a'); }
+  pxText('↓1F',cols[0].x+cols[0].w/2,roomTopY+roomTopH/2+gapH/2,'#555',9,'center');
+
+  // Right stairs (col5) - going up, locked gate
+  pxRect(cols[5].x+4,roomTopY+20,cols[5].w-12,roomTopH+gapH+roomBotH-40,'#1a1a18');
+  for(var syy=0;syy<5;syy++){ pxRect(cols[5].x+8,roomTopY+25+syy*16,cols[5].w-20,6,'#2a2a2a'); }
+  if(stairsLocked){
+    // Locked iron gate
+    pxRect(cols[5].x+10,gapY-8,cols[5].w-24,8,'#552222');
+    pxRect(cols[5].x+10,gapY,cols[5].w-24,2,P.RED);
+    pxText('🔒锁',cols[5].x+cols[5].w/2,roomTopY+roomTopH/2+gapH/2,P.RED,9,'center');
+  }else{
+    pxText('↑3F',cols[5].x+cols[5].w/2,roomTopY+roomTopH/2+gapH/2,'#6a8a6a',9,'center');
+  }
+
   // Draw doors
   for(var i=0;i<doors.length;i++) drawDoor(doors[i]);
 
@@ -975,24 +1019,6 @@ function render(){
       drawItem(cols[2].x+20,roomTopY+40,'desk');
       drawItem(cols[2].x+cols[2].w-35,roomTopY+38,'desk');
     }
-  }
-
-  // Stairs icons
-  // Left stairs (col0) - going down
-  pxRect(cols[0].x,roomTopY+20,cols[0].w-4,roomTopH+gapH+roomBotH-40,'#1a1a18');
-  for(var syy=0;syy<5;syy++){ pxRect(cols[0].x+4,roomTopY+25+syy*16,cols[0].w-12,6,'#2a2a2a'); }
-  pxText('↓1F',cols[0].x+cols[0].w/2,roomTopY+roomTopH/2+gapH/2,'#555',9,'center');
-
-  // Right stairs (col5) - going up, locked gate
-  pxRect(cols[5].x+4,roomTopY+20,cols[5].w-12,roomTopH+gapH+roomBotH-40,'#1a1a18');
-  for(var syy=0;syy<5;syy++){ pxRect(cols[5].x+8,roomTopY+25+syy*16,cols[5].w-20,6,'#2a2a2a'); }
-  if(stairsLocked){
-    // Locked iron gate
-    pxRect(cols[5].x+10,gapY-8,cols[5].w-24,8,'#552222');
-    pxRect(cols[5].x+10,gapY,cols[5].w-24,2,P.RED);
-    pxText('🔒锁',cols[5].x+cols[5].w/2,roomTopY+roomTopH/2+gapH/2,P.RED,9,'center');
-  }else{
-    pxText('↑3F',cols[5].x+cols[5].w/2,roomTopY+roomTopH/2+gapH/2,'#6a8a6a',9,'center');
   }
 
   // Plants near hall
@@ -1065,9 +1091,9 @@ function render(){
     var dw=isArt?360:480, dh=isArt?440:300;
     var dx=(W-dw)/2, dy=(H-dh)/2;
     pxRect(dx,dy,dw,dh,P.DIALOG_BG);
-    drawBorder(dx,dy,dw,dh,P.DIALOG_BORDER,3);
     pxRect(dx,dy,dw,22,'#1a1a1a');
     drawBorder(dx,dy,dw,22,P.DIALOG_BORDER,1);
+    drawBorder(dx,dy,dw,dh,P.DIALOG_BORDER,3);
     pxText(dialog.title,dx+dw/2,dy+5,P.DIALOG_TITLE,11,'center');
 
     var lines=dialog.text.split('\n');
@@ -1129,8 +1155,9 @@ function render(){
     }else if(dialog.special==='artPaint'){
       drawArtPaint(dx,dy,dw,dh);
     }else{
-      for(var li=0;li<lines.length;li++){
-        pxText(lines[li],dx+16,dy+30+li*14,P.DIALOG_TEXT,10);
+      var dLines=dialog.pages?dialog.pages[dialog.page]:lines;
+      for(var li=0;li<dLines.length;li++){
+        pxText(dLines[li],dx+16,dy+30+li*14,P.DIALOG_TEXT,10);
       }
     }
 
@@ -1141,6 +1168,8 @@ function render(){
       }else{
         pxText('[F] 关闭   [Y] 看落灰的画',dx+dw/2,dy+dh-22,P.HUD,10,'center');
       }
+    }else if(dialog.pages && !dialog.special && dialog.page<dialog.pages.length-1){
+      pxText('[F] 继续  第 '+(dialog.page+1)+'/'+dialog.pages.length+' 页',dx+dw/2,dy+dh-22,P.HUD,10,'center');
     }else{
       pxText('[F] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
     }
@@ -1152,9 +1181,9 @@ function render(){
     var pw=280,ph=150;
     var pdx=(W-pw)/2, pdy=(H-ph)/2;
     pxRect(pdx,pdy,pw,ph,P.DIALOG_BG);
-    drawBorder(pdx,pdy,pw,ph,P.DIALOG_BORDER,3);
     pxRect(pdx,pdy,pw,22,'#1a1a1a');
     drawBorder(pdx,pdy,pw,22,P.DIALOG_BORDER,1);
+    drawBorder(pdx,pdy,pw,ph,P.DIALOG_BORDER,3);
 
     if(pwDialog.targetId==='stairs_up'){
       pxText('三楼铁门 — 电子密码锁',pdx+pw/2,pdy+5,P.DIALOG_TITLE,11,'center');
@@ -1184,9 +1213,9 @@ function render(){
     var bw=384,bh=224;
     var bx=(W-bw)/2, by=(H-bh)/2;
     pxRect(bx,by,bw,bh,P.DIALOG_BG);
-    drawBorder(bx,by,bw,bh,P.DIALOG_BORDER,3);
     pxRect(bx,by,bw,22,'#1a1a1a');
     drawBorder(bx,by,bw,22,P.DIALOG_BORDER,1);
+    drawBorder(bx,by,bw,bh,P.DIALOG_BORDER,3);
     pxText('床 — 休息一下（调整时间/日期）',bx+bw/2,by+5,P.DIALOG_TITLE,11,'center');
 
     var WEEK=['日','一','二','三','四','五','六'];

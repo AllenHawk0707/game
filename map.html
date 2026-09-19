@@ -392,7 +392,13 @@ window.addEventListener('keydown',function(e){
   }
   if(e.key==='f'||e.key==='F'){
     e.preventDefault();
-    if(dialog){ if(archiveState==='restored') archiveState=null; if(bottleState==='choice') bottleState=null; closeDialog(); return; }
+    if(dialog){
+      if(dialog.pages && !dialog.special && dialog.page<dialog.pages.length-1){ dialog.page++; return; }
+      if(archiveState==='restored') archiveState=null;
+      if(bottleState==='choice') bottleState=null;
+      closeDialog();
+      return;
+    }
     if(pwDialog){ submitPw(); return; }
     if(interactionHint){
       handleInteraction(interactionHint);
@@ -436,6 +442,8 @@ function nearZone(px,py,zone){
 // ── Interaction ──
 var computerBusy = false;   // 防止电脑交互在跳转延迟内被重复触发
 function handleInteraction(hint){
+  // 被黑影吃掉后死亡优先：被追上的瞬间起，任何出口/楼层转换交互均失效
+  if(caughtDeath) return;
   if(hint.type==='password'){
     // 追逐战拉完4闸后回到一楼，大门密码自动失效：直接开门 → 好结局
     if(hint.id==='gate'){
@@ -579,8 +587,27 @@ function findInteraction(){
 
 // ── Dialog ──
 function openDialog(title,text){
-  dialog={title:title,text:text};
+  // 预折行并分页，避免长文档溢出对话框
+  var raw=text.split('\n');
+  var lines=[];
+  ctx.font='11px "Courier New","SimSun",monospace';
+  for(var i=0;i<raw.length;i++){
+    var L=raw[i];
+    while(ctx.measureText(L).width>440 && L.length>1){
+      var cut=L.length;
+      while(cut>1 && ctx.measureText(L.slice(0,cut)).width>440) cut--;
+      lines.push(L.slice(0,cut));
+      L=L.slice(cut);
+    }
+    lines.push(L);
+  }
+  var perPage=14;
+  var pages=[];
+  for(var p=0;p<lines.length;p+=perPage) pages.push(lines.slice(p,p+perPage));
+  if(!pages.length) pages.push(['']);
+  dialog={title:title,text:text,pages:pages,page:0};
 }
+window.__openDialog=openDialog;
 function closeDialog(){ dialog=null; }
 
 function openPwDialog(id,pw,docId){
@@ -756,9 +783,13 @@ function update(){
     Footsteps.update(false, 0);
   }
 
+  // 黑影抓捕先判定：被怪物吃掉的死亡优先级高于楼梯楼层转换。
+  // 同帧既踩到楼梯、又被黑影贴脸时，应判死而非借上楼逃脱。
+  updateChaser();
+  if(caughtDeath) return;
+
   // Check interactions
   findInteraction();
-  updateChaser();
 
 
   // Tip timer
@@ -1384,7 +1415,7 @@ function render(){
     if(dialog.special==='room101'){
       drawRoom101Scene(dx,dy,dw,dh);
     }else{
-      var lines=dialog.text.split('\n');
+      var lines=dialog.pages?dialog.pages[dialog.page]:dialog.text.split('\n');
       var inRed=false;
       for(var li=0;li<lines.length;li++){
         var line=lines[li];
@@ -1399,6 +1430,8 @@ function render(){
       pxText('[Y] 是     [N] 否     [F/Esc] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
     }else if(bottleState==='choice'){
       pxText('[Y] 吞服     [N] 拒绝     [F/Esc] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    }else if(dialog.pages && !dialog.special && dialog.page<dialog.pages.length-1){
+      pxText('[F] 继续  第 '+(dialog.page+1)+'/'+dialog.pages.length+' 页',dx+dw/2,dy+dh-22,P.HUD,10,'center');
     }else{
       pxText('[F] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
     }

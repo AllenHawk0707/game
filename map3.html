@@ -243,7 +243,11 @@ window.addEventListener('keydown',function(e){
   if(e.key==='f'||e.key==='F'){
     e.preventDefault();
     if(playerDead) return;
-    if(dialog){ closeDialog(); return; }
+    if(dialog){
+      if(dialog.pages && dialog.page<dialog.pages.length-1){ dialog.page++; }
+      else{ closeDialog(); }
+      return;
+    }
     if(pwDialog){ submitPw(); return; }
     if(interactionHint){
       handleInteraction(interactionHint);
@@ -297,6 +301,8 @@ function isBreakerPulled(){
 
 // ── Interaction ──
 function handleInteraction(hint){
+  // 被黑影吃掉后死亡优先：任何出口/楼层转换交互均失效
+  if(caughtDeath) return;
   if(hint.type==='doc'){
     // 周五 18:00-23:00：三楼卫生间镜中浮现通往配电隔间的门
     if(hint.id==='doc_bathroom' && isBathroomPortalOpen()){
@@ -393,7 +399,25 @@ function findInteraction(){
 
 // ── Dialog ──
 function openDialog(title,text){
-  dialog={title:title,text:text};
+  // 预折行并分页，避免长文档溢出对话框
+  var raw=text.split('\n');
+  var lines=[];
+  ctx.font='10px "Courier New","SimSun",monospace';
+  for(var i=0;i<raw.length;i++){
+    var L=raw[i];
+    while(ctx.measureText(L).width>468 && L.length>1){
+      var cut=L.length;
+      while(cut>1 && ctx.measureText(L.slice(0,cut)).width>468) cut--;
+      lines.push(L.slice(0,cut));
+      L=L.slice(cut);
+    }
+    lines.push(L);
+  }
+  var perPage=19;
+  var pages=[];
+  for(var p=0;p<lines.length;p+=perPage) pages.push(lines.slice(p,p+perPage));
+  if(!pages.length) pages.push(['']);
+  dialog={title:title,text:text,pages:pages,page:0};
 }
 function closeDialog(){
   if(pendingMap4){
@@ -469,9 +493,11 @@ function update(){
     player.walkTimer=0;
   }
 
+  // 黑影抓捕先判定：被怪物吃掉死亡优先级高于楼层转换（同帧踩楼梯又被贴脸时判死）
+  updateChaser();
+  if(caughtDeath) return;
   findInteraction();
   updateRedEffects();
-  updateChaser();
 
   if(tipTimer>0) tipTimer--;
   if(tipTimer<=0) tipText='';
@@ -847,7 +873,7 @@ function pxText(text,x,y,c,size,align){
 function drawBorder(x,y,w,h,c,t){
   t=t||2;
   pxRect(x,y,w,t,c); pxRect(x,y+h-t,w,t,c);
-  pxRect(x,t,y,h,c);   pxRect(x+w-t,y,t,h,c);
+  pxRect(x,y,t,h,c);   pxRect(x+w-t,y,t,h,c);
 }
 
 // ── 右上角时间系统 HUD（统一 UI） ──
@@ -976,6 +1002,11 @@ function render(){
   pxText('废  弃  通  道',B.L+(cols[4].x-B.L)/2+1,hallY+hallH/2-6+1,'#000',10,'center');
   pxText('废  弃  通  道',B.L+(cols[4].x-B.L)/2,hallY+hallH/2-6,'#333',10,'center');
 
+  // Stairs icon - col0（先画楼梯贴图，再画门，避免门被楼梯底色盖住）
+  pxRect(cols[0].x+8,roomTopY+20,cols[0].w-20,roomTopH+gapH+roomBotH-40,'#0e0e0c');
+  for(var syy=0;syy<4;syy++){ pxRect(cols[0].x+12,roomTopY+25+syy*18,cols[0].w-28,8,'#1a1a1a'); }
+  pxText('↓2F',cols[0].x+cols[0].w/2,roomTopY+roomTopH/2+gapH/2,'#444',9,'center');
+
   // Draw doors
   for(var i=0;i<doors.length;i++) drawDoor(doors[i]);
 
@@ -1030,11 +1061,6 @@ function render(){
   drawItem(cols[5].x+cols[5].w/2-3,roomTopY+40,'instrument');
   // Lab bottom - large instrument
   drawItem(cols[5].x+cols[5].w/2-8,roomBotY+roomBotH/2,'instrument');
-
-  // Stairs icon - col0
-  pxRect(cols[0].x+8,roomTopY+20,cols[0].w-20,roomTopH+gapH+roomBotH-40,'#0e0e0c');
-  for(var syy=0;syy<4;syy++){ pxRect(cols[0].x+12,roomTopY+25+syy*18,cols[0].w-28,8,'#1a1a1a'); }
-  pxText('↓2F',cols[0].x+cols[0].w/2,roomTopY+roomTopH/2+gapH/2,'#444',9,'center');
 
   // Lab pulse effect
   if(screenShake>0){
@@ -1115,17 +1141,21 @@ function render(){
     var dw=500,dh=320;
     var dx=(W-dw)/2, dy=(H-dh)/2;
     pxRect(dx,dy,dw,dh,P.DIALOG_BG);
-    drawBorder(dx,dy,dw,dh,P.DIALOG_BORDER,3);
     pxRect(dx,dy,dw,22,'#0d0d0d');
     drawBorder(dx,dy,dw,22,P.DIALOG_BORDER,1);
+    drawBorder(dx,dy,dw,dh,P.DIALOG_BORDER,3);
     pxText(dialog.title,dx+dw/2,dy+5,P.DIALOG_TITLE,12,'center');
 
-    var lines=dialog.text.split('\n');
+    var lines=dialog.pages?dialog.pages[dialog.page]:dialog.text.split('\n');
     for(var li=0;li<lines.length;li++){
       pxText(lines[li],dx+16,dy+28+li*13,P.DIALOG_TEXT,10);
     }
 
-    pxText('[F] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    if(dialog.pages && dialog.page<dialog.pages.length-1){
+      pxText('[F] 继续  第 '+(dialog.page+1)+'/'+dialog.pages.length+' 页',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    }else{
+      pxText('[F] 关闭',dx+dw/2,dy+dh-22,P.HUD,10,'center');
+    }
   }
 
   // Password dialog (unused but kept for compatibility)
@@ -1134,9 +1164,9 @@ function render(){
     var pw=280,ph=140;
     var pdx=(W-pw)/2, pdy=(H-ph)/2;
     pxRect(pdx,pdy,pw,ph,P.DIALOG_BG);
-    drawBorder(pdx,pdy,pw,ph,P.DIALOG_BORDER,3);
     pxRect(pdx,pdy,pw,22,'#0d0d0d');
     drawBorder(pdx,pdy,pw,22,P.DIALOG_BORDER,1);
+    drawBorder(pdx,pdy,pw,ph,P.DIALOG_BORDER,3);
     pxText('密码锁',pdx+pw/2,pdy+5,P.DIALOG_TITLE,11,'center');
     pxText('输入密码：',pdx+20,pdy+40,P.DIALOG_TEXT,11);
 
